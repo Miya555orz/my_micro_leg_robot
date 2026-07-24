@@ -1,0 +1,15 @@
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:36:6:Init_Ui_Condition	16	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:133:10:Calculate_Priority	32	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:169:9:SortedMerge	24	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:214:6:FrontBackSplit	32	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:244:6:mergeSort	32	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:273:13:Init_Priority_LinkedList	128	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:328:13:Init_Type_LinkedLists	152	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:457:13:Store_High_Priority_UI	40	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:578:31:Process_Char_Info_To_Buffer	144	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:625:35:Process_Graphic_To_Buffer	232	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:786:13:Init_Ui_List	40	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:810:13:Ui_Send_Normal	272	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:843:13:Ui_Send_Add	912	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:928:6:Ui_Send	16	static
+C:/Users/zqr/Desktop/Infantry/Application/SolvingLayer/ui_priority.c:972:13:Enqueue_Ui_For_Sending	16	static

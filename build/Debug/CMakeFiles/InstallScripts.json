@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/zqr/Desktop/Infantry/build/Debug/cmake_install.cmake",
+		"C:/Users/zqr/Desktop/Infantry/build/Debug/cmake/stm32cubemx/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,0 +1,8 @@
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:163:9:Get_CRC8_Check_Num	24	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:199:6:Append_CRC8_Check_Num	24	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:231:9:Get_CRC8_Check_Sum	24	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:269:10:Verify_CRC8_Check_Sum	24	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:313:6:Append_CRC8_Check_Sum	24	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:353:10:Get_CRC16_Check_Sum	32	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:401:10:Verify_CRC16_Check_Sum	24	static
+C:/Users/zqr/Desktop/Infantry/Application/AlgorithmLayer/crc.c:441:6:Append_CRC16_Check_Sum	24	static

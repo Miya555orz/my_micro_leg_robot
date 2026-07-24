@@ -1,0 +1,4 @@
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/cap.c:57:13:CAP_Heartbeat	24	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/cap.c:88:13:CAP_setMessage	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/cap.c:97:13:CAP_txMessage	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/cap.c:107:13:CAP_rxMessage	32	static

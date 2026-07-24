@@ -1,0 +1,17 @@
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:58:6:KT_motor_class_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:95:6:KT_motor_class_heartbeat	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:147:6:kt_motor_class_pid_init	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:177:6:kt_motor_multi_control	32	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:223:6:tx_kt_motor_W_command	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:426:6:tx_kt_motor_R_command	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:492:13:KT_Encoder_Sum_Cal	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:532:6:get_kt_motor_info	136	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:726:6:write_kt_motor_pid_param	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:745:6:write_kt_motor_accel_param	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:757:6:write_kt_motor_encoderOffset_param	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:773:6:write_kt_motor_powerControl_param	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:788:6:write_kt_motor_iqControl_param	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:802:6:write_kt_motor_speedControl_param	16	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:814:6:write_kt_motor_angle_sum_Control_param	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:830:6:write_kt_motor_angle_single_Control_param	24	static
+C:/Users/zqr/Desktop/Infantry/Application/HardwareLayer/KT_motor.c:857:6:write_kt_motor_angle_add_Control_param	24	static

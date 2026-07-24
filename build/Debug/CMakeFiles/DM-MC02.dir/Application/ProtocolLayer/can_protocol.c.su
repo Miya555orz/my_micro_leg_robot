@@ -1,0 +1,3 @@
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/can_protocol.c:10:6:CAN1_rxDataHandler	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/can_protocol.c:34:6:CAN2_rxDataHandler	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/can_protocol.c:58:6:CAN3_rxDataHandler	16	static

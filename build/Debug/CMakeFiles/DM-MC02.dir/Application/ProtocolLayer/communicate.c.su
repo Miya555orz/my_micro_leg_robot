@@ -1,0 +1,9 @@
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:16:13:Board_Tx_D1	8	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:23:13:Board_Tx_D2	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:31:6:Board_Rx_C1	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:38:6:Board_Rx_C2	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:45:6:Board_Rx_C3	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:52:6:Board_Rx_C4	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:59:6:Board_Tx_Update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:134:6:Send_To_Up_Board	8	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/communicate.c:141:6:D_Board_HeartBeat	4	static

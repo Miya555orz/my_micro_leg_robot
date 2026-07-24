@@ -1,0 +1,19 @@
+--- ../../Core/Src/usart.c
++++ ../../Core/Src/usart.c
+@@ -754,6 +754,16 @@
+   }
+   else if(uartHandle->Instance==UART9)
+   {
++  /** Initializes the peripherals clock
++  */
++    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
++    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_UART9;
++    PeriphClkInitStruct.Usart16ClockSelection = RCC_USART16910CLKSOURCE_D2PCLK2;
++    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
++    {
++      Error_Handler();
++    }
++
+     /* UART9 clock enable */
+     __HAL_RCC_UART9_CLK_ENABLE();
+ 

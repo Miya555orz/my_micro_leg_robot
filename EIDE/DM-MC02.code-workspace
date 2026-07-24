@@ -1,0 +1,76 @@
+{
+    "folders": [
+        {
+            "path": "."
+        },
+        {
+            "path": "../Application"
+        },
+        {
+            "path": "../../up/EIDE"
+        },
+        {
+            "path": "../../up"
+        }
+    ],
+    "settings": {
+        "C_Cpp.formatting": "clangFormat",
+        "[c]": {
+            "editor.defaultFormatter": "ms-vscode.cpptools"
+        },
+        "[cpp]": {
+            "editor.defaultFormatter": "ms-vscode.cpptools"
+        },
+        "terminal.integrated.shellIntegration.enabled": false,
+        "terminal.integrated.detectLocale": "off",
+        "terminal.integrated.defaultProfile.windows": "Command Prompt (GB2312)",
+        "terminal.integrated.profiles.windows": {
+            "Command Prompt (GB2312)": {
+                "path": "C:\\Windows\\System32\\cmd.exe",
+                "args": [
+                    "/k",
+                    "chcp 936>nul"
+                ]
+            }
+        },
+        "clangd.arguments": [
+            "--header-insertion=never"
+        ],
+        "files.autoGuessEncoding": false,
+        "files.encoding": "gb2312",
+        "C_Cpp.default.configurationProvider": "cl.eide",
+        "C_Cpp.errorSquiggles": "disabled",
+        "files.associations": {
+            ".eideignore": "ignore",
+            "*.a51": "a51",
+            "*.h": "c",
+            "*.c": "c",
+            "*.hxx": "cpp",
+            "*.hpp": "cpp",
+            "*.c++": "cpp",
+            "*.cpp": "cpp",
+            "*.cxx": "cpp",
+            "*.cc": "cpp"
+        },
+        "[yaml]": {
+            "editor.insertSpaces": true,
+            "editor.tabSize": 4,
+            "editor.autoIndent": "advanced"
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            "cl.eide",
+            "keroc.hex-fmt",
+            "xiaoyongdong.srecord",
+            "hars.cppsnippets",
+            "zixuanwang.linkerscript",
+            "redhat.vscode-yaml",
+            "IBM.output-colorizer",
+            "cschlosser.doxdocgen",
+            "ms-vscode.vscode-serial-monitor",
+            "dan-c-underwood.arm",
+            "marus25.cortex-debug"
+        ]
+    }
+}

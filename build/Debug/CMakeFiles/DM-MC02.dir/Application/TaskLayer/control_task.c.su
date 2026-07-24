@@ -1,0 +1,3 @@
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/control_task.c:10:6:StartCtrlTask	16	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/control_task.c:46:13:All_CAN_Send_Here	8	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/control_task.c:69:13:Motor_Unload_Force	8	static

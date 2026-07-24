@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs file:*)",
+      "Read(//tmp/**)",
+      "Read(//c/Users/74142/AppData/Roaming/Code/User/**)",
+      "Read(//d/RM_related/2026_Project/LYQ_Infantry/down/**)",
+      "Bash(sed -i '343s/thumbwheel_step/thumbwheel_mid_step/g' car.c)",
+      "Bash(sed -i '343s/thumbwheel_last_step/thumbwheel_mid_last_step/g' car.c)",
+      "Bash(sed -i '430s/thumbwheel_step/thumbwheel_mid_step/g' car.c)",
+      "Bash(sed -i '430s/thumbwheel_last_step/thumbwheel_mid_last_step/g' car.c)",
+      "Bash(sed -i '522s/thumbwheel_step/thumbwheel_mid_step/g' car.c)",
+      "Read(//c/Users/74142/.claude/skills/**)",
+      "Edit(~/.claude/skills/code-style/**)"
+    ],
+    "additionalDirectories": [
+      "d:\\RM_related\\2026_Project\\LYQ_Infantry\\down\\.claude\\worktrees\\feature+jump-and-mid-command\\Application\\ModuleLayer",
+      "C:\\Users\\74142\\.claude\\skills"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
+  }
+}

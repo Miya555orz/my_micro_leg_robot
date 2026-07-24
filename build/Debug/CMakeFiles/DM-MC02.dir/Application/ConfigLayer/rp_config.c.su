@@ -1,0 +1,4 @@
+C:/Users/zqr/Desktop/Infantry/Application/ConfigLayer/rp_config.c:20:6:WFI_SET	4	static
+C:/Users/zqr/Desktop/Infantry/Application/ConfigLayer/rp_config.c:25:6:INTX_DISABLE	4	static
+C:/Users/zqr/Desktop/Infantry/Application/ConfigLayer/rp_config.c:30:6:INTX_ENABLE	4	static
+C:/Users/zqr/Desktop/Infantry/Application/ConfigLayer/rp_config.c:36:6:MSR_MSP	16	static

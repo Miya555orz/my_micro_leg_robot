@@ -1,0 +1,5 @@
+C:/Users/zqr/Desktop/Infantry/Middlewares/Segger_RTT/SEGGER_RTT_printf.c:112:13:_StoreChar	24	static
+C:/Users/zqr/Desktop/Infantry/Middlewares/Segger_RTT/SEGGER_RTT_printf.c:137:13:_PrintUnsigned	48	static
+C:/Users/zqr/Desktop/Infantry/Middlewares/Segger_RTT/SEGGER_RTT_printf.c:227:13:_PrintInt	40	static
+C:/Users/zqr/Desktop/Infantry/Middlewares/Segger_RTT/SEGGER_RTT_printf.c:322:5:SEGGER_RTT_vprintf	144	static
+C:/Users/zqr/Desktop/Infantry/Middlewares/Segger_RTT/SEGGER_RTT_printf.c:496:5:SEGGER_RTT_printf	28	static

@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug (OpenOCD + DAPLink)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "serverpath": "C:/Users/zqr/Desktop/openocd-v0.12.0-i686-w64-mingw32/bin/openocd.exe",
+            "executable": "${workspaceFolder}/build/Debug/DM-MC02.elf",
+            "configFiles": [
+                "${workspaceFolder}/Utilities/openocd-cmsisdap-stm32h7x.cfg"
+            ],
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "raw",
+            "svdFile": "${workspaceFolder}/Utilities/SVD/STM32H723.svd",
+            "armToolchainPath": "D:/Program Files/Arm/arm-gnu-toolchain-14.2.rel1-mingw-w64-x86_64-arm-none-eabi/bin",
+            "gdbPath": "D:/Program Files/Arm/arm-gnu-toolchain-14.2.rel1-mingw-w64-x86_64-arm-none-eabi/bin/arm-none-eabi-gdb.exe",
+            "debuggerArgs": ["--nx"],
+            "rttConfig": {
+                "enabled": true,
+                "address": "auto",
+                "decoders": [
+                    {
+                        "type": "console",
+                        "label": "RTT Console",
+                        "port": 0,
+                        "charsPerSample": 16
+                    }
+                ]
+            },
+            // "liveWatch": {
+            //     "enabled": true,
+            //     "samplesPerSecond": 4
+            // },
+            "preLaunchCommands": [
+                "monitor reset init",
+                "monitor halt"
+            ],
+            "postLaunchCommands": [
+                "monitor arm semihosting enable"
+            ]
+        }
+    ]
+}

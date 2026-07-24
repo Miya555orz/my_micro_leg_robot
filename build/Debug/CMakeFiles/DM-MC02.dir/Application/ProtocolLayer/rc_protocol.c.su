@@ -1,0 +1,7 @@
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:51:6:rc_sensor_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:84:6:keyboard_cnt_max_set	24	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:133:6:rc_interrupt_update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:171:6:rc_sensor_update	24	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:280:6:keyboard_update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:329:6:keyboard_status_update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/rc_protocol.c:404:6:USART5_rxDataHandler	16	static

@@ -1,0 +1,7 @@
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:88:9:BMI088_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:101:8:bmi088_accel_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:146:8:bmi088_gyro_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:195:6:BMI088_read	40	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:233:13:BMI088_write_single_reg	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:239:13:BMI088_read_single_reg	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Imu/BMI088driver.c:258:13:BMI088_read_muli_reg	16	static

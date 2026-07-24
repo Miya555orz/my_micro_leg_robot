@@ -1,0 +1,8 @@
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:44:6:MX_UART5_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:87:6:MX_UART7_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:130:6:MX_UART8_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:174:6:MX_USART1_UART_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:218:6:MX_USART2_UART_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:262:6:MX_USART10_UART_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:305:6:HAL_UART_MspInit	280	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/usart.c:714:6:HAL_UART_MspDeInit	16	static

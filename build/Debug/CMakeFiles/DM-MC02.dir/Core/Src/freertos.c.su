@@ -1,0 +1,6 @@
+C:/Users/zqr/Desktop/Infantry/Core/Src/freertos.c:111:6:MX_FREERTOS_Init	8	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/freertos.c:167:13:StartMonitorTask	16	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/freertos.c:185:13:StartCtrlTask	16	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/freertos.c:203:13:StartCommandTask	16	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/freertos.c:221:13:StartUpdataTask	16	static
+C:/Users/zqr/Desktop/Infantry/Core/Src/freertos.c:239:13:StartUITask	16	static

@@ -1,0 +1,5 @@
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_tick.c:77:10:micros	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_tick.c:107:6:delay_us	24	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_tick.c:121:6:delay_ms	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_tick.c:141:6:DWT_Init	4	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_tick.c:169:10:DWT_GetCycleCount	4	static

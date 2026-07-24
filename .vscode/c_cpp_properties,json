@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/Application/AlgorithmLayer",
+                "${workspaceFolder}/Application/ConfigLayer",
+                "${workspaceFolder}/Application/ControlLayer",
+                "${workspaceFolder}/Application/DeviceLayer",
+                "${workspaceFolder}/Application/DriverLayer",
+                "${workspaceFolder}/Application/HardwareLayer",
+                "${workspaceFolder}/Application/ModuleLayer",
+                "${workspaceFolder}/Application/ParameterLayer",
+                "${workspaceFolder}/Application/ProtocolLayer",
+                "${workspaceFolder}/Application/ServiceLayer",
+                "${workspaceFolder}/Application/SolvingLayer",
+                "${workspaceFolder}/Application/TaskLayer"
+                
+            ],
+            "defines": [
+                "ARM_MATH_LOOPUNROLL",
+                "ARM_MATH_DSP",
+                "ARM_MATH_CM7"
+            ],
+            "compilerPath": "D:\\Program Files\\Arm\\GNU Toolchain mingw-w64-x86_64-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

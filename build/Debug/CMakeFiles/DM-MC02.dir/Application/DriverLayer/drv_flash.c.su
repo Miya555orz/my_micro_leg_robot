@@ -1,0 +1,6 @@
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_flash.c:39:6:Flash_ReadData	24	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_flash.c:61:6:Flash_WriteByteData	32	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_flash.c:93:6:Flash_WriteHalfWordData	32	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_flash.c:125:6:Flash_WriteWordData	32	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_flash.c:189:10:Flash_EraseSector	40	static
+C:/Users/zqr/Desktop/Infantry/Application/DriverLayer/drv_flash.c:229:10:Flash_EraseSector11	16	static

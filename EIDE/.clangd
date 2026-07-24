@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:
+    - -ID:\Keil5_MDK\ARM\ARMCLANG/include
+    - -ID:\Keil5_MDK\ARM\ARMCLANG/include/libcxx
+  Remove: []
+  CompilationDatabase: ./build/DM-MC02
+  Compiler: D:\Keil5_MDK\ARM\ARMCLANG\bin\armclang.exe

@@ -1,0 +1,15 @@
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:10:6:StartRP_LogTask	16	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:27:6:My_Log_Check_Vision_Flag_Edge_Beep	24	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:143:6:My_Log_print_leg_spring_compensation	56	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:152:6:My_Log_print_leg_gravity_torque	40	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:159:6:My_Log_print_posture_degree	72	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:170:6:My_Log_print_posture_world	48	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:178:6:My_Log_print_phi1_phi4	56	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:187:6:My_Log_print_leg_state_info	80	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:197:6:My_Log_print_leg_state_err	80	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:207:6:My_Log_print_leg_F_support	40	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:214:6:My_Log_print_leg_sd1	64	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:221:6:My_Log_print_power_cap	48	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:227:6:My_Log_print_rescue_state	48	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:282:6:PowerWarning_Buzzer_Check	16	static
+C:/Users/zqr/Desktop/Infantry/Application/TaskLayer/RP_Log_task.c:344:6:CapLowVoltage_Buzzer_Check	16	static

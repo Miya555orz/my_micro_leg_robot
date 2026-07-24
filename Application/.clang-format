@@ -1,0 +1,24 @@
+# For more options, open this url: https://clang.llvm.net.cn/docs/ClangFormatStyleOptions.html
+---
+BasedOnStyle: Microsoft
+IndentWidth: 4
+UseTab: Never
+TabWidth: 4
+ColumnLimit: 0
+---
+Language: Cpp
+AccessModifierOffset: -4
+NamespaceIndentation: All
+FixNamespaceComments: false
+BreakBeforeBraces: Linux
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: true
+IndentCaseLabels: true
+SortIncludes: false
+AlignConsecutiveMacros: AcrossEmptyLines
+AlignConsecutiveAssignments: Consecutive
+# 关键：去掉连续声明之间的空行
+KeepEmptyLinesAtLineBreak: false
+KeepEmptyLinesAtFileStart: false
+KeepEmptyLinesAtFileEnd: false

@@ -1,0 +1,12 @@
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:61:13:Gimbal_Status_Update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:155:13:Gimbal_Gyro_Update	32	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:223:13:Gimbal_Mec_Update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:245:13:Gimbal_Mec_Move_Update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:257:13:Gimbal_Init_Update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:267:13:Gimbal_Extern_Update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:291:13:Gimbal_Yaw_Angle_Limit	24	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:303:13:Gimbal_Pitch_Gyro_Angle_Limit	24	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:318:13:Gimbal_Pitch_Mec_Angle_Limit	24	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:332:13:Gimbal_Pid_Cal	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:379:13:Gimbal_Check_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/ModuleLayer/gimbal.c:418:6:Gimbal_Work	16	static

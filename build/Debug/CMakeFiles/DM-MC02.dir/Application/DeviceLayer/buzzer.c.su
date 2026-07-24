@@ -1,0 +1,10 @@
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:19:6:Buzzer_init	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:40:17:Buzzer_Calc_Optimal_Presc	32	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:63:17:Buzzer_Calc_ARR	24	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:83:17:Buzzer_Calc_CCR	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:93:14:Buzzer_Volume_to_Duty	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:104:6:Buzzer_Work	32	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:182:6:Buzzer_Normal_On	8	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:188:6:Buzzer_Normal_Off	4	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:194:6:Buzzer_Alarm	8	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/buzzer.c:200:6:Buzzer_StartSound	8	static

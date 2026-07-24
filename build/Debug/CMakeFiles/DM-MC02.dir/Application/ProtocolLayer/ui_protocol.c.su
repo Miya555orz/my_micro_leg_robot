@@ -1,0 +1,16 @@
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:43:6:client_info_update	4	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:155:23:draw_line	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:216:23:draw_rectangle	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:277:23:draw_circle	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:336:23:draw_ellipse	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:397:23:draw_arc	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:462:23:draw_float	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:525:23:draw_int	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:600:23:draw_char	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:665:9:client_send_single_graphic	56	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:722:9:client_send_double_graphic	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:779:9:client_send_five_graphic	32	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:836:9:client_send_seven_graphic	32	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:893:9:client_send_char	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:952:9:client_graphic_delete_update	40	static
+C:/Users/zqr/Desktop/Infantry/Application/ProtocolLayer/ui_protocol.c:1015:9:uart_send_data	16	static

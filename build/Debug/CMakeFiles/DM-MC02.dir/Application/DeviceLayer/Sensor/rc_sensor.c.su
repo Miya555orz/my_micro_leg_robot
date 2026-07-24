@@ -1,0 +1,5 @@
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Sensor/rc_sensor.c:108:13:rc_sensor_check	24	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Sensor/rc_sensor.c:250:6:rc_sensor_s_last_update	16	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Sensor/rc_sensor.c:273:13:rc_sensor_heart_beat	24	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Sensor/rc_sensor.c:305:6:RC_IsChannelReset	8	static
+C:/Users/zqr/Desktop/Infantry/Application/DeviceLayer/Sensor/rc_sensor.c:325:6:RC_ResetData	16	static
