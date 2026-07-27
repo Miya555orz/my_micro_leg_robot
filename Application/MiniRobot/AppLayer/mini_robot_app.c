@@ -52,6 +52,12 @@ static volatile uint16_t pending_uart_length;
 static volatile uint8_t pending_uart_ready;
 static uint32_t remote_last_servo_ms;
 static uint8_t remote_jump_request;
+static uint8_t telemetry_enabled = 0U;
+static uint8_t can_auto_tx_enabled = 0U;
+static uint8_t foc_direct_mode_enabled = 0U;
+static uint32_t can1_boot_test_count;
+static uint32_t can2_boot_test_count;
+static volatile uint32_t ctrl_loop_count;
 
 static uint16_t checksum16(const uint8_t *data, uint16_t length)
 {
@@ -165,6 +171,131 @@ static void send_servo_readout(const MiniServoStatus_t *status, HAL_StatusTypeDe
     MiniVofa_SendText(message);
 }
 
+static void send_can_status_line(const char *name, FDCAN_HandleTypeDef *hfdcan)
+{
+    const CAN_DiagTypeDef *diag = CAN_GetDiag(hfdcan);
+    FDCAN_ProtocolStatusTypeDef protocol = {0};
+    FDCAN_ErrorCountersTypeDef errors = {0};
+    char message[192];
+    uint32_t free_level = 0U;
+
+    if (diag == 0) {
+        return;
+    }
+    free_level = HAL_FDCAN_GetTxFifoFreeLevel(hfdcan);
+    (void)HAL_FDCAN_GetProtocolStatus(hfdcan, &protocol);
+    (void)HAL_FDCAN_GetErrorCounters(hfdcan, &errors);
+    snprintf(message,
+             sizeof(message),
+             "%s free=%lu txq=%lu ok=%lu fail=%lu full=%lu abort=%lu rx=%lu rxfail=%lu st=%lu err=0x%08lX lec=%lu dlec=%lu tec=%lu rec=%lu ep=%lu warn=%lu bo=%lu\r\n",
+             name,
+             (unsigned long)free_level,
+             (unsigned long)diag->tx_attempt_count,
+             (unsigned long)diag->tx_ok_count,
+             (unsigned long)diag->tx_fail_count,
+             (unsigned long)diag->tx_fifo_full_count,
+             (unsigned long)diag->tx_abort_count,
+             (unsigned long)diag->rx_count,
+             (unsigned long)diag->rx_fail_count,
+             (unsigned long)diag->last_tx_status,
+             (unsigned long)diag->last_error_code,
+             (unsigned long)protocol.LastErrorCode,
+             (unsigned long)protocol.DataLastErrorCode,
+             (unsigned long)errors.TxErrorCnt,
+             (unsigned long)errors.RxErrorCnt,
+             (unsigned long)protocol.ErrorPassive,
+             (unsigned long)protocol.Warning,
+             (unsigned long)protocol.BusOff);
+    MiniVofa_SendText(message);
+
+    snprintf(message,
+             sizeof(message),
+             "%s last_tx id=0x%03lX t=%lums data=%02X %02X %02X %02X %02X %02X %02X %02X | last_rx id=0x%03lX dlc=%lu t=%lums data=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
+             name,
+             (unsigned long)diag->last_tx_id,
+             (unsigned long)diag->last_tx_tick_ms,
+             (unsigned)diag->last_tx_data[0],
+             (unsigned)diag->last_tx_data[1],
+             (unsigned)diag->last_tx_data[2],
+             (unsigned)diag->last_tx_data[3],
+             (unsigned)diag->last_tx_data[4],
+             (unsigned)diag->last_tx_data[5],
+             (unsigned)diag->last_tx_data[6],
+             (unsigned)diag->last_tx_data[7],
+             (unsigned long)diag->last_rx_id,
+             (unsigned long)diag->last_rx_dlc,
+             (unsigned long)diag->last_rx_tick_ms,
+             (unsigned)diag->last_rx_data[0],
+             (unsigned)diag->last_rx_data[1],
+             (unsigned)diag->last_rx_data[2],
+             (unsigned)diag->last_rx_data[3],
+             (unsigned)diag->last_rx_data[4],
+             (unsigned)diag->last_rx_data[5],
+             (unsigned)diag->last_rx_data[6],
+             (unsigned)diag->last_rx_data[7]);
+    MiniVofa_SendText(message);
+}
+
+static void send_can_status(void)
+{
+    char message[96];
+
+    snprintf(message,
+             sizeof(message),
+             "can task loops=%lu boot1=%lu boot2=%lu\r\n",
+             (unsigned long)ctrl_loop_count,
+             (unsigned long)can1_boot_test_count,
+             (unsigned long)can2_boot_test_count);
+    MiniVofa_SendText(message);
+    send_can_status_line("can1", &hfdcan1);
+    send_can_status_line("can2", &hfdcan2);
+}
+
+static void send_can_boot_test_frame(FDCAN_HandleTypeDef *hfdcan,
+                                     uint32_t std_id,
+                                     uint8_t marker,
+                                     uint32_t *counter)
+{
+    uint8_t data[8];
+    uint32_t value;
+
+    if (counter == 0) {
+        return;
+    }
+
+    value = (*counter)++;
+    data[0] = (uint8_t)(value & 0xFFU);
+    data[1] = (uint8_t)((value >> 8U) & 0xFFU);
+    data[2] = (uint8_t)((value >> 16U) & 0xFFU);
+    data[3] = (uint8_t)((value >> 24U) & 0xFFU);
+    data[4] = marker;
+    data[5] = 0x55U;
+    data[6] = 0xAAU;
+    data[7] = (uint8_t)(data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4] ^ data[5] ^ data[6]);
+
+    if (CAN_SendData(hfdcan, std_id, data) == HAL_OK) {
+        if (hfdcan == &hfdcan1) {
+            MiniStatusLed_Pulse(MINI_STATUS_LED_CAN1);
+        } else if (hfdcan == &hfdcan2) {
+            MiniStatusLed_Pulse(MINI_STATUS_LED_CAN2);
+        }
+    }
+}
+
+static void send_can_boot_test_all(void)
+{
+#if MINI_CAN_BOOT_TEST_ENABLE
+    send_can_boot_test_frame(&hfdcan1,
+                             MINI_CAN1_BOOT_TEST_ID,
+                             0xC1U,
+                             &can1_boot_test_count);
+    send_can_boot_test_frame(&hfdcan2,
+                             MINI_CAN2_BOOT_TEST_ID,
+                             0xC2U,
+                             &can2_boot_test_count);
+#endif
+}
+
 static void apply_vofa_command(const MiniVofaCommand_t *cmd)
 {
     uint8_t id;
@@ -177,16 +308,85 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
 
     switch (cmd->type) {
     case MINI_VOFA_CMD_VEL:
+        foc_direct_mode_enabled = 0U;
         MiniChassis_SetVelocity(cmd->a, cmd->b);
+        can_auto_tx_enabled = 1U;
         break;
     case MINI_VOFA_CMD_ENABLE:
+        foc_direct_mode_enabled = 0U;
         MiniChassis_SetEnabled(1U);
+        can_auto_tx_enabled = 1U;
         break;
     case MINI_VOFA_CMD_STOP:
+        foc_direct_mode_enabled = 0U;
         MiniChassis_SetEnabled(0U);
+        MiniFoc_SetCommand(0U, MINI_FOC_MODE_STOP, 0.0f);
+        MiniFoc_SetCommand(1U, MINI_FOC_MODE_STOP, 0.0f);
+        MiniFoc_SendAll();
+        can_auto_tx_enabled = 0U;
         break;
+    case MINI_VOFA_CMD_TELEMETRY: {
+        char message[32];
+        telemetry_enabled = cmd->enable;
+        snprintf(message, sizeof(message), "telemetry=%u\r\n", (unsigned)telemetry_enabled);
+        MiniVofa_SendText(message);
+        break;
+    }
+    case MINI_VOFA_CMD_CAN_STAT:
+        send_can_status();
+        break;
+    case MINI_VOFA_CMD_CAN_RESTART:
+        if (cmd->index == 1U) {
+            FDCAN1_Restart();
+        } else if (cmd->index == 2U) {
+            FDCAN2_Restart();
+        }
+        send_can_status();
+        break;
+    case MINI_VOFA_CMD_CAN_AUTO: {
+        char message[32];
+        can_auto_tx_enabled = cmd->enable;
+        snprintf(message, sizeof(message), "can auto=%u\r\n", (unsigned)can_auto_tx_enabled);
+        MiniVofa_SendText(message);
+        break;
+    }
+    case MINI_VOFA_CMD_CAN_TX: {
+        char message[40];
+        HAL_StatusTypeDef status = HAL_ERROR;
+
+        if (cmd->index >= 1U && cmd->index <= MINI_ROBOT_WHEEL_COUNT) {
+            status = MiniFoc_SendIndex((uint8_t)(cmd->index - 1U));
+        }
+        snprintf(message,
+                 sizeof(message),
+                 "can tx%u st=%u\r\n",
+                 (unsigned)cmd->index,
+                 (unsigned)status);
+        MiniVofa_SendText(message);
+        send_can_status();
+        break;
+    }
+    case MINI_VOFA_CMD_FOC_DIRECT: {
+        char message[64];
+        HAL_StatusTypeDef status;
+
+        status = MiniFoc_CommandNode(cmd->index, (MiniFocMode_t)cmd->mode, cmd->a);
+        foc_direct_mode_enabled = (cmd->mode == MINI_FOC_MODE_STOP) ? 0U : 1U;
+        can_auto_tx_enabled = 0U;
+        snprintf(message,
+                 sizeof(message),
+                 "foc node=%u mode=%u value=%.4f st=%u\r\n",
+                 (unsigned)cmd->index,
+                 (unsigned)cmd->mode,
+                 (double)cmd->a,
+                 (unsigned)status);
+        MiniVofa_SendText(message);
+        break;
+    }
     case MINI_VOFA_CMD_WHEEL_POS:
+        foc_direct_mode_enabled = 0U;
         MiniChassis_SetWheelPosition(cmd->a, cmd->b);
+        can_auto_tx_enabled = 1U;
         break;
     case MINI_VOFA_CMD_PID_SPEED:
         MiniChassis_SetPid(MINI_PID_SLOT_SPEED, cmd->index, cmd->a, cmd->b, cmd->c);
@@ -364,6 +564,11 @@ void MiniRobot_Init(void)
     MiniVofa_SendText("\r\nmini controller v2 init\r\n");
     MiniVofa_SendText("pc: uart7 pe7/pe8 115200 8N1\r\n");
     MiniVofa_SendText("servos: usart1 pa9/pa10, usart10 pe3/pe2, 1Mbps\r\n");
+    MiniVofa_SendText("telemetry default off, send telemetry 1 for JustFloat\r\n");
+    MiniVofa_SendText("can auto default off, use can tx 1/2 for single-frame test\r\n");
+#if MINI_CAN_BOOT_TEST_ENABLE
+    MiniVofa_SendText("can boot test on: CAN1 id=0x101, CAN2 id=0x102, 100ms\r\n");
+#endif
     snprintf(message,
              sizeof(message),
              "mpu6050 i2c2=%u, nrf24 spi1=%u\r\n",
@@ -375,7 +580,9 @@ void MiniRobot_Init(void)
 
 void MiniRobot_ControlStep(void)
 {
-    MiniChassis_Update((float)MINI_ROBOT_CONTROL_PERIOD_MS * 0.001f);
+    if (foc_direct_mode_enabled == 0U) {
+        MiniChassis_Update((float)MINI_ROBOT_CONTROL_PERIOD_MS * 0.001f);
+    }
     MiniFoc_Heartbeat(HAL_GetTick());
 }
 
@@ -403,7 +610,9 @@ void MiniRobot_TelemetryStep(void)
     telemetry.chassis_wz = cmd->wz_rps;
     telemetry.servo_pos_l = (float)servo_pos[0];
     telemetry.servo_pos_r = (float)servo_pos[1];
-    MiniVofa_SendTelemetry(&telemetry);
+    if (telemetry_enabled) {
+        MiniVofa_SendTelemetry(&telemetry);
+    }
 
     MiniStatusLed_Update(now_ms);
 #if MINI_IWDG_ENABLE
@@ -477,14 +686,23 @@ void StartCtrlTask(void *argument)
 {
     uint32_t tick = osKernelGetTickCount();
     uint32_t can_elapsed_ms = 0U;
+    uint32_t can_boot_test_elapsed_ms = 0U;
 
     (void)argument;
     for (;;) {
+        ctrl_loop_count++;
         MiniRobot_ControlStep();
+        can_boot_test_elapsed_ms += MINI_ROBOT_CONTROL_PERIOD_MS;
+        if (can_boot_test_elapsed_ms >= MINI_CAN_BOOT_TEST_PERIOD_MS) {
+            can_boot_test_elapsed_ms = 0U;
+            send_can_boot_test_all();
+        }
         can_elapsed_ms += MINI_ROBOT_CONTROL_PERIOD_MS;
         if (can_elapsed_ms >= MINI_ROBOT_CAN_PERIOD_MS) {
             can_elapsed_ms = 0U;
-            MiniFoc_SendAll();
+            if (can_auto_tx_enabled) {
+                MiniFoc_SendAll();
+            }
         }
         tick += MINI_ROBOT_CONTROL_PERIOD_MS;
         osDelayUntil(tick);

@@ -26,12 +26,19 @@ typedef enum {
     MINI_VOFA_CMD_SERVO_BAUD,
     MINI_VOFA_CMD_SERVO_PAIR,
     MINI_VOFA_CMD_SERVO_SHUTDOWN,
+    MINI_VOFA_CMD_TELEMETRY,
+    MINI_VOFA_CMD_CAN_STAT,
+    MINI_VOFA_CMD_CAN_RESTART,
+    MINI_VOFA_CMD_CAN_AUTO,
+    MINI_VOFA_CMD_CAN_TX,
+    MINI_VOFA_CMD_FOC_DIRECT,
 } MiniVofaCmdType_t;
 
 typedef struct {
     MiniVofaCmdType_t type;
     uint8_t index;
     uint8_t enable;
+    uint8_t mode;
     float a;
     float b;
     float c;

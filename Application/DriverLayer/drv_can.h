@@ -40,6 +40,26 @@ typedef struct {
 	uint8_t				data[8];
 } CAN_RxFrameTypeDef;
 
+typedef struct {
+    uint32_t tx_attempt_count;
+    uint32_t tx_ok_count;
+    uint32_t tx_fail_count;
+    uint32_t tx_fifo_full_count;
+    uint32_t tx_abort_count;
+    uint32_t rx_count;
+    uint32_t rx_fail_count;
+    uint32_t last_tx_id;
+    uint32_t last_tx_tick_ms;
+    uint32_t last_tx_status;
+    uint32_t last_tx_free_level;
+    uint32_t last_rx_id;
+    uint32_t last_rx_dlc;
+    uint32_t last_rx_tick_ms;
+    uint32_t last_error_code;
+    uint8_t last_tx_data[8];
+    uint8_t last_rx_data[8];
+} CAN_DiagTypeDef;
+
 /* Exported functions --------------------------------------------------------*/
 void CAN1_Filter_Init(void);
 void CAN2_Filter_Init(void);
@@ -54,5 +74,6 @@ void FDCAN2_Restart(void);
 void CAN1_SendData(uint32_t StdId, uint8_t *data);
 void CAN2_SendData(uint32_t StdId, uint8_t *data);
 HAL_StatusTypeDef CAN_SendData(FDCAN_HandleTypeDef *hcan, uint32_t stdId, const uint8_t *dat);
+const CAN_DiagTypeDef *CAN_GetDiag(FDCAN_HandleTypeDef *hcan);
 
 #endif

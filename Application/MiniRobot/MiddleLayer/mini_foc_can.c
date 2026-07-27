@@ -9,6 +9,7 @@ extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 
 static MiniFocMotor_t motors[MINI_ROBOT_WHEEL_COUNT];
+static uint8_t tx_sequence;
 
 static uint8_t checksum8(const uint8_t *data, uint8_t len)
 {
@@ -45,22 +46,49 @@ void MiniFoc_SetCommand(uint8_t index, MiniFocMode_t mode, float value)
     motors[index].command = value;
 }
 
-void MiniFoc_SendAll(void)
+HAL_StatusTypeDef MiniFoc_SendIndex(uint8_t index)
 {
     uint8_t frame[8];
 
+    if (index >= MINI_ROBOT_WHEEL_COUNT) {
+        return HAL_ERROR;
+    }
+
+    memset(frame, 0, sizeof(frame));
+    frame[0] = (uint8_t)motors[index].mode;
+    frame[1] = motors[index].node_id;
+    memcpy(&frame[2], &motors[index].command, sizeof(float));
+    frame[6] = tx_sequence++;
+    frame[7] = checksum8(frame, 7U);
+
+    return CAN_SendData(motors[index].hfdcan,
+                        MINI_FOC_CMD_BASE_ID + motors[index].node_id,
+                        frame);
+}
+
+HAL_StatusTypeDef MiniFoc_CommandIndex(uint8_t index, MiniFocMode_t mode, float value)
+{
+    MiniFoc_SetCommand(index, mode, value);
+    return MiniFoc_SendIndex(index);
+}
+
+HAL_StatusTypeDef MiniFoc_CommandNode(uint8_t node, MiniFocMode_t mode, float value)
+{
+    if (node == 0U) {
+        HAL_StatusTypeDef left_status = MiniFoc_CommandIndex(0U, mode, value);
+        HAL_StatusTypeDef right_status = MiniFoc_CommandIndex(1U, mode, value);
+        return (left_status == HAL_OK && right_status == HAL_OK) ? HAL_OK : HAL_ERROR;
+    }
+    if (node >= 1U && node <= MINI_ROBOT_WHEEL_COUNT) {
+        return MiniFoc_CommandIndex((uint8_t)(node - 1U), mode, value);
+    }
+    return HAL_ERROR;
+}
+
+void MiniFoc_SendAll(void)
+{
     for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i) {
-        memset(frame, 0, sizeof(frame));
-        frame[0] = (uint8_t)motors[i].mode;
-        frame[1] = motors[i].node_id;
-        memcpy(&frame[2], &motors[i].command, sizeof(float));
-        frame[6] = i;
-        frame[7] = checksum8(frame, 7U);
-        if (CAN_SendData(motors[i].hfdcan,
-                         MINI_FOC_CMD_BASE_ID + motors[i].node_id,
-                         frame) == HAL_OK) {
-            MiniStatusLed_Pulse((i == 0U) ? MINI_STATUS_LED_CAN1 : MINI_STATUS_LED_CAN2);
-        }
+        (void)MiniFoc_SendIndex(i);
     }
 }
 

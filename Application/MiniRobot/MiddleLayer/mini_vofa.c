@@ -7,6 +7,61 @@
 
 extern UART_HandleTypeDef huart7;
 
+static volatile uint8_t vofa_tx_busy;
+
+static uint8_t vofa_try_lock_tx(void)
+{
+    uint8_t locked = 0U;
+
+    __disable_irq();
+    if (vofa_tx_busy == 0U) {
+        vofa_tx_busy = 1U;
+        locked = 1U;
+    }
+    __enable_irq();
+    return locked;
+}
+
+static void vofa_unlock_tx(void)
+{
+    __disable_irq();
+    vofa_tx_busy = 0U;
+    __enable_irq();
+}
+
+static HAL_StatusTypeDef vofa_send_bytes(const uint8_t *data, uint16_t length)
+{
+    uint32_t start;
+    uint32_t elapsed;
+    HAL_StatusTypeDef status;
+
+    if (data == 0 || length == 0U) {
+        return HAL_ERROR;
+    }
+
+    start = HAL_GetTick();
+    while (vofa_try_lock_tx() == 0U) {
+        if ((HAL_GetTick() - start) >= MINI_VOFA_TX_TIMEOUT_MS) {
+            return HAL_BUSY;
+        }
+    }
+
+    while (huart7.gState != HAL_UART_STATE_READY) {
+        if ((HAL_GetTick() - start) >= MINI_VOFA_TX_TIMEOUT_MS) {
+            vofa_unlock_tx();
+            return HAL_BUSY;
+        }
+    }
+
+    elapsed = HAL_GetTick() - start;
+    status = HAL_UART_Transmit(&huart7,
+                               (uint8_t *)data,
+                               length,
+                               MINI_VOFA_TX_TIMEOUT_MS - elapsed);
+    vofa_unlock_tx();
+    return status;
+}
+
 static uint16_t bounded_strlen(const uint8_t *rx, uint16_t max_len)
 {
     uint16_t n = 0U;
@@ -60,6 +115,71 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
     }
     if (strncmp(line, "stop", 4U) == 0) {
         out->type = MINI_VOFA_CMD_STOP;
+        return 1U;
+    }
+    if (sscanf(line, "telemetry %d", &enable) == 1 || sscanf(line, "monitor %d", &enable) == 1) {
+        out->type = MINI_VOFA_CMD_TELEMETRY;
+        out->enable = (uint8_t)(enable != 0);
+        return 1U;
+    }
+    if (strncmp(line, "can stat", 8U) == 0) {
+        out->type = MINI_VOFA_CMD_CAN_STAT;
+        return 1U;
+    }
+    if (sscanf(line, "can auto %d", &enable) == 1) {
+        out->type = MINI_VOFA_CMD_CAN_AUTO;
+        out->enable = (uint8_t)(enable != 0);
+        return 1U;
+    }
+    if (sscanf(line, "can tx %d", &index) == 1) {
+        out->type = MINI_VOFA_CMD_CAN_TX;
+        out->index = (uint8_t)index;
+        return 1U;
+    }
+    if (sscanf(line, "foc stop %d", &index) == 1 ||
+        sscanf(line, "stop %d", &index) == 1) {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = (uint8_t)index;
+        out->mode = 0U;
+        out->a = 0.0f;
+        return 1U;
+    }
+    if (sscanf(line, "foc enable %d", &index) == 1 ||
+        sscanf(line, "enable %d", &index) == 1) {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = (uint8_t)index;
+        out->mode = 2U;
+        out->a = 0.0f;
+        return 1U;
+    }
+    if (sscanf(line, "foc speed %d %f", &index, &a) == 2 ||
+        sscanf(line, "speed %d %f", &index, &a) == 2) {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = (uint8_t)index;
+        out->mode = 2U;
+        out->a = a;
+        return 1U;
+    }
+    if (sscanf(line, "foc pos %d %f", &index, &a) == 2 ||
+        sscanf(line, "foc position %d %f", &index, &a) == 2 ||
+        sscanf(line, "position %d %f", &index, &a) == 2) {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = (uint8_t)index;
+        out->mode = 3U;
+        out->a = a;
+        return 1U;
+    }
+    if (sscanf(line, "foc torque %d %f", &index, &a) == 2 ||
+        sscanf(line, "torque %d %f", &index, &a) == 2) {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = (uint8_t)index;
+        out->mode = 1U;
+        out->a = a;
+        return 1U;
+    }
+    if (sscanf(line, "can restart %d", &index) == 1) {
+        out->type = MINI_VOFA_CMD_CAN_RESTART;
+        out->index = (uint8_t)index;
         return 1U;
     }
     if (sscanf(line, "pid speed %d %f %f %f", &index, &a, &b, &c) == 4) {
@@ -189,7 +309,7 @@ void MiniVofa_SendText(const char *text)
     if (text == 0) {
         return;
     }
-    HAL_UART_Transmit(&huart7, (uint8_t *)text, (uint16_t)strlen(text), MINI_VOFA_TX_TIMEOUT_MS);
+    (void)vofa_send_bytes((const uint8_t *)text, (uint16_t)strlen(text));
 }
 
 void MiniVofa_SendTelemetry(const MiniVofaTelemetry_t *telemetry)
@@ -217,5 +337,5 @@ void MiniVofa_SendTelemetry(const MiniVofaTelemetry_t *telemetry)
     tx[offset + 1U] = 0x00U;
     tx[offset + 2U] = 0x80U;
     tx[offset + 3U] = 0x7FU;
-    HAL_UART_Transmit(&huart7, tx, sizeof(tx), MINI_VOFA_TX_TIMEOUT_MS);
+    (void)vofa_send_bytes(tx, sizeof(tx));
 }

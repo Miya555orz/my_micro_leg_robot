@@ -11,14 +11,14 @@ static void fdcan_common_init(FDCAN_HandleTypeDef *hfdcan, FDCAN_GlobalTypeDef *
     hfdcan->Init.AutoRetransmission = ENABLE;
     hfdcan->Init.TransmitPause = DISABLE;
     hfdcan->Init.ProtocolException = DISABLE;
-    hfdcan->Init.NominalPrescaler = 5;
-    hfdcan->Init.NominalSyncJumpWidth = 4;
-    hfdcan->Init.NominalTimeSeg1 = 14;
-    hfdcan->Init.NominalTimeSeg2 = 5;
-    hfdcan->Init.DataPrescaler = 5;
-    hfdcan->Init.DataSyncJumpWidth = 4;
-    hfdcan->Init.DataTimeSeg1 = 14;
-    hfdcan->Init.DataTimeSeg2 = 5;
+    hfdcan->Init.NominalPrescaler = 1;
+    hfdcan->Init.NominalSyncJumpWidth = 20;
+    hfdcan->Init.NominalTimeSeg1 = 59;
+    hfdcan->Init.NominalTimeSeg2 = 20;
+    hfdcan->Init.DataPrescaler = 1;
+    hfdcan->Init.DataSyncJumpWidth = 20;
+    hfdcan->Init.DataTimeSeg1 = 59;
+    hfdcan->Init.DataTimeSeg2 = 20;
     hfdcan->Init.MessageRAMOffset = ram_offset;
     hfdcan->Init.StdFiltersNbr = 1;
     hfdcan->Init.ExtFiltersNbr = 0;
@@ -60,7 +60,7 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef *fdcanHandle)
 
     if (fdcan_clock_refcount++ == 0U) {
         PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
-        PeriphClkInitStruct.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL2;
+        PeriphClkInitStruct.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
         if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
             Error_Handler();
         }

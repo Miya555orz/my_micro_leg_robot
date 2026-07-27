@@ -8,6 +8,7 @@ typedef enum {
     MINI_FOC_MODE_STOP = 0,
     MINI_FOC_MODE_CURRENT = 1,
     MINI_FOC_MODE_SPEED = 2,
+    MINI_FOC_MODE_POSITION = 3,
 } MiniFocMode_t;
 
 typedef struct {
@@ -25,6 +26,9 @@ typedef struct {
 void MiniFoc_Init(void);
 MiniFocMotor_t *MiniFoc_GetMotor(uint8_t index);
 void MiniFoc_SetCommand(uint8_t index, MiniFocMode_t mode, float value);
+HAL_StatusTypeDef MiniFoc_SendIndex(uint8_t index);
+HAL_StatusTypeDef MiniFoc_CommandIndex(uint8_t index, MiniFocMode_t mode, float value);
+HAL_StatusTypeDef MiniFoc_CommandNode(uint8_t node, MiniFocMode_t mode, float value);
 void MiniFoc_SendAll(void);
 void MiniFoc_OnCanRx(FDCAN_HandleTypeDef *hfdcan, uint32_t std_id, const uint8_t data[8]);
 void MiniFoc_Heartbeat(uint32_t now_ms);
