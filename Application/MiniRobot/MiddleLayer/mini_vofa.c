@@ -71,9 +71,54 @@ static uint16_t bounded_strlen(const uint8_t *rx, uint16_t max_len)
     return n;
 }
 
+static uint8_t parse_servo_selector(const char *selector, uint8_t *index)
+{
+    int id;
+
+    if (selector == 0 || index == 0) {
+        return 0U;
+    }
+    if (sscanf(selector, "%d", &id) == 1) {
+        if (id == 0 || id == 1) {
+            *index = 0U;
+            return 1U;
+        }
+        if (id == 2) {
+            *index = 1U;
+            return 1U;
+        }
+        if (id == 254) {
+            *index = 0xFEU;
+            return 1U;
+        }
+        return 0U;
+    }
+    if (strcmp(selector, "l") == 0 ||
+        strcmp(selector, "left") == 0 ||
+        strcmp(selector, "L") == 0 ||
+        strcmp(selector, "LEFT") == 0) {
+        *index = 0U;
+        return 1U;
+    }
+    if (strcmp(selector, "r") == 0 ||
+        strcmp(selector, "right") == 0 ||
+        strcmp(selector, "R") == 0 ||
+        strcmp(selector, "RIGHT") == 0) {
+        *index = 1U;
+        return 1U;
+    }
+    if (strcmp(selector, "all") == 0 ||
+        strcmp(selector, "ALL") == 0) {
+        *index = 0xFEU;
+        return 1U;
+    }
+    return 0U;
+}
+
 uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaCommand_t *out)
 {
     char line[MINI_VOFA_RX_BUF_LEN + 1U];
+    char selector[12];
     uint16_t len;
     int index;
     int enable;
@@ -111,6 +156,14 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
     if (sscanf(line, "enable %d", &enable) == 1) {
         out->type = enable ? MINI_VOFA_CMD_ENABLE : MINI_VOFA_CMD_STOP;
         out->enable = (uint8_t)(enable != 0);
+        return 1U;
+    }
+    if (strncmp(line, "stand", 5U) == 0) {
+        out->type = MINI_VOFA_CMD_STAND;
+        return 1U;
+    }
+    if (strncmp(line, "sleep", 5U) == 0) {
+        out->type = MINI_VOFA_CMD_SLEEP;
         return 1U;
     }
     if (strncmp(line, "stop", 4U) == 0) {
@@ -175,6 +228,10 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
         out->index = (uint8_t)index;
         out->mode = 1U;
         out->a = a;
+        return 1U;
+    }
+    if (strncmp(line, "block reset", 11U) == 0) {
+        out->type = MINI_VOFA_CMD_BLOCK_RESET;
         return 1U;
     }
     if (sscanf(line, "can restart %d", &index) == 1) {
@@ -255,26 +312,26 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
         out->a = a;
         return 1U;
     }
-    if (sscanf(line, "servo pos %d %f", &index, &a) == 2) {
+    if (sscanf(line, "servo pos %11s %f", selector, &a) == 2 &&
+        parse_servo_selector(selector, &out->index)) {
         out->type = MINI_VOFA_CMD_SERVO_POS;
-        out->index = (uint8_t)index;
         out->a = a;
         return 1U;
     }
-    if (sscanf(line, "servo ping %d", &index) == 1) {
+    if (sscanf(line, "servo ping %11s", selector) == 1 &&
+        parse_servo_selector(selector, &out->index)) {
         out->type = MINI_VOFA_CMD_SERVO_PING;
-        out->index = (uint8_t)index;
         return 1U;
     }
-    if (sscanf(line, "servo torque %d %d", &index, &enable) == 2) {
+    if (sscanf(line, "servo torque %11s %d", selector, &enable) == 2 &&
+        parse_servo_selector(selector, &out->index)) {
         out->type = MINI_VOFA_CMD_SERVO_TORQUE;
-        out->index = (uint8_t)index;
         out->enable = (uint8_t)(enable != 0);
         return 1U;
     }
-    if (sscanf(line, "servo read %d", &index) == 1) {
+    if (sscanf(line, "servo read %11s", selector) == 1 &&
+        parse_servo_selector(selector, &out->index)) {
         out->type = MINI_VOFA_CMD_SERVO_READ;
-        out->index = (uint8_t)index;
         return 1U;
     }
     if (sscanf(line, "servo baud %f", &a) == 1) {
@@ -282,10 +339,19 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
         out->a = a;
         return 1U;
     }
+    if (sscanf(line, "servo probe %11s", selector) == 1 &&
+        parse_servo_selector(selector, &out->index)) {
+        out->type = MINI_VOFA_CMD_SERVO_PROBE;
+        return 1U;
+    }
     if (sscanf(line, "servo pair %f %f", &a, &b) == 2) {
         out->type = MINI_VOFA_CMD_SERVO_PAIR;
         out->a = a;
         out->b = b;
+        return 1U;
+    }
+    if (strncmp(line, "servo scan", 10U) == 0) {
+        out->type = MINI_VOFA_CMD_SERVO_SCAN;
         return 1U;
     }
     if (strncmp(line, "servo shutdown", 14U) == 0) {

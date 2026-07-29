@@ -15,6 +15,7 @@
 #define MPU_WHO_AM_I_VALUE    0x68U
 #define MPU_GRAVITY_MPS2      9.80665f
 #define MPU_DEG_TO_RAD        0.01745329252f
+#define MPU_PI                3.14159265359f
 
 static I2C_HandleTypeDef *mpu_i2c;
 static MiniMpu6050Data_t mpu_data;
@@ -74,6 +75,7 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
     uint8_t raw[14];
     const float accel_scale = MPU_GRAVITY_MPS2 / 8192.0f;
     const float gyro_scale = MPU_DEG_TO_RAD / 65.5f;
+    float accel_roll;
     float accel_pitch;
 
     if (mpu_i2c == 0 || dt_s <= 0.0f) {
@@ -98,14 +100,27 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
     mpu_data.gyro_rps[1] = (float)be_i16(&raw[10]) * gyro_scale;
     mpu_data.gyro_rps[2] = (float)be_i16(&raw[12]) * gyro_scale;
 
+    accel_roll = atan2f(mpu_data.accel_mps2[1], mpu_data.accel_mps2[2]);
     accel_pitch = atan2f(-mpu_data.accel_mps2[0],
                          sqrtf(mpu_data.accel_mps2[1] * mpu_data.accel_mps2[1] +
                                mpu_data.accel_mps2[2] * mpu_data.accel_mps2[2]));
+    mpu_data.roll_rate_rps = MINI_MPU6050_ROLL_SIGN * mpu_data.gyro_rps[0];
     mpu_data.pitch_rate_rps = MINI_MPU6050_PITCH_SIGN * mpu_data.gyro_rps[1];
+    mpu_data.yaw_rate_rps = MINI_MPU6050_YAW_SIGN * mpu_data.gyro_rps[2];
+    mpu_data.roll_rad = MINI_MPU6050_COMPLEMENTARY_ALPHA *
+                        (mpu_data.roll_rad + mpu_data.roll_rate_rps * dt_s) +
+                        (1.0f - MINI_MPU6050_COMPLEMENTARY_ALPHA) *
+                        (MINI_MPU6050_ROLL_SIGN * accel_roll + MINI_MPU6050_ROLL_OFFSET_RAD);
     mpu_data.pitch_rad = MINI_MPU6050_COMPLEMENTARY_ALPHA *
                          (mpu_data.pitch_rad + mpu_data.pitch_rate_rps * dt_s) +
                          (1.0f - MINI_MPU6050_COMPLEMENTARY_ALPHA) *
                          (MINI_MPU6050_PITCH_SIGN * accel_pitch + MINI_MPU6050_PITCH_OFFSET_RAD);
+    mpu_data.yaw_rad += mpu_data.yaw_rate_rps * dt_s;
+    if (mpu_data.yaw_rad > MPU_PI) {
+        mpu_data.yaw_rad -= 2.0f * MPU_PI;
+    } else if (mpu_data.yaw_rad < -MPU_PI) {
+        mpu_data.yaw_rad += 2.0f * MPU_PI;
+    }
     mpu_data.last_update_ms = HAL_GetTick();
     mpu_data.online = 1U;
     return HAL_OK;

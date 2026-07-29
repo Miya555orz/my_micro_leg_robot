@@ -23,6 +23,44 @@
 #define MINI_ROBOT_MAX_WHEEL_SPEED_RPS      120.0f
 #define MINI_ROBOT_MAX_CURRENT_A            8.0f
 
+#define MINI_ROBOT_AUTO_STAND_ON_BOOT       0U
+#define MINI_BALANCE_STAND_SETTLE_MS        300U
+#define MINI_BALANCE_IMU_TIMEOUT_MS         100U
+#define MINI_BALANCE_PITCH_LIMIT_RAD        0.55f
+#define MINI_BALANCE_TARGET_PITCH_RAD       0.0f
+#define MINI_BALANCE_LQR_OUTPUT_LIMIT_A     2.5f
+#define MINI_BALANCE_FOC_GRACE_MS           500U
+#define MINI_BALANCE_FOC_TIMEOUT_MS         500U
+#define MINI_BALANCE_PID_KP                 4.0f
+#define MINI_BALANCE_PID_KI                 0.0f
+#define MINI_BALANCE_PID_KD                 0.18f
+#define MINI_BALANCE_PID_INTEGRAL_LIMIT     0.20f
+#define MINI_BALANCE_PID_OUTPUT_LIMIT_A     1.5f
+#define MINI_BALANCE_PITCH_OUTPUT_SIGN      1.0f
+#define MINI_BALANCE_WHEEL_LEFT_SIGN        1.0f
+#define MINI_BALANCE_WHEEL_RIGHT_SIGN       1.0f
+#define MINI_BALANCE_ROLL_LIMIT_RAD         0.35f
+#define MINI_BALANCE_ROLL_PID_KP            0.40f
+#define MINI_BALANCE_ROLL_PID_KI            0.0f
+#define MINI_BALANCE_ROLL_PID_KD            0.02f
+#define MINI_BALANCE_ROLL_OUTPUT_LIMIT_A    0.35f
+#define MINI_BALANCE_FALL_ANGLE_RAD         1.0472f
+#define MINI_BALANCE_FALL_CONFIRM_MS        500U
+#define MINI_BALANCE_RECOVER_CURRENT_A      1.2f
+#define MINI_BALANCE_RECOVER_TIME_MS        450U
+#define MINI_BALANCE_RECOVER_MAX_TRY        3U
+#define MINI_BALANCE_RECOVER_SUCCESS_RAD    0.35f
+#define MINI_BALANCE_FRONT_RECOVER_SIGN     (-1.0f)
+#define MINI_BALANCE_BACK_RECOVER_SIGN      1.0f
+#define MINI_BALANCE_SERVO_AUX_SIDE         0U
+#define MINI_BALANCE_SERVO_FORWARD_POS      1780U
+#define MINI_BALANCE_SERVO_BACKWARD_POS     2310U
+#define MINI_BALANCE_SERVO_ROLL_RANGE       180U
+#define MINI_BALANCE_SERVO_UPDATE_MS        60U
+#define MINI_BLOCK_CURRENT_THRESHOLD_A      1.25f
+#define MINI_BLOCK_SPEED_THRESHOLD_RPS      0.52f
+#define MINI_BLOCK_CONFIRM_MS               200U
+
 #define MINI_PID_SPEED_KP                   0.20f
 #define MINI_PID_SPEED_KI                   0.02f
 #define MINI_PID_SPEED_KD                   0.0f
@@ -55,12 +93,12 @@
     {0.0f, 0.0f}  \
 }
 #define MINI_LQR_DEFAULT_K                  { \
-    {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, \
-    {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}  \
+    {1.20f, 0.08f, 0.04f, 0.03f, 0.04f, 0.03f}, \
+    {1.20f, 0.08f, 0.04f, 0.03f, 0.04f, 0.03f}  \
 }
-#define MINI_LQR_DEFAULT_X_REF              {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}
+#define MINI_LQR_DEFAULT_X_REF              {MINI_BALANCE_TARGET_PITCH_RAD, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}
 #define MINI_LQR_DEFAULT_U_FF               {0.0f, 0.0f}
-#define MINI_LQR_OUTPUT_LIMIT_A             MINI_ROBOT_MAX_CURRENT_A
+#define MINI_LQR_OUTPUT_LIMIT_A             MINI_BALANCE_LQR_OUTPUT_LIMIT_A
 
 #define MINI_FOC_CAN_ID_LEFT                1U
 #define MINI_FOC_CAN_ID_RIGHT               1U
@@ -69,10 +107,14 @@
 
 #define MINI_SERVO_UART_BAUD                1000000U
 #define MINI_SERVO_LEFT_ID                  1U
-#define MINI_SERVO_RIGHT_ID                 2U
+#define MINI_SERVO_RIGHT_ID                 1U
 #define MINI_SERVO_CENTER_POS               2048U
 #define MINI_SERVO_OPEN_POS                 MINI_SERVO_CENTER_POS
 #define MINI_SERVO_SHUTDOWN_POS             MINI_SERVO_CENTER_POS
+#define MINI_SERVO_STAND_LEFT_POS           MINI_SERVO_CENTER_POS
+#define MINI_SERVO_STAND_RIGHT_POS          MINI_SERVO_CENTER_POS
+#define MINI_SERVO_STAND_TIME_MS            300U
+#define MINI_SERVO_STAND_SPEED              500U
 #define MINI_SERVO_POSITION_MIN             0U
 #define MINI_SERVO_POSITION_MAX             4095U
 #define MINI_SERVO_MOVE_TIME_MS             0U
@@ -90,7 +132,10 @@
 #define MINI_MPU6050_I2C_ADDRESS            (0x68U << 1U)
 #define MINI_MPU6050_UPDATE_PERIOD_MS       10U
 #define MINI_MPU6050_COMPLEMENTARY_ALPHA    0.98f
+#define MINI_MPU6050_ROLL_SIGN              1.0f
 #define MINI_MPU6050_PITCH_SIGN             1.0f
+#define MINI_MPU6050_YAW_SIGN               1.0f
+#define MINI_MPU6050_ROLL_OFFSET_RAD        0.0f
 #define MINI_MPU6050_PITCH_OFFSET_RAD       0.0f
 
 #define MINI_NRF24_CHANNEL                  76U

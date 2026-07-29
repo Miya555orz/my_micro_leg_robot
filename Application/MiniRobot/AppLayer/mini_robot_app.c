@@ -10,12 +10,14 @@
 #include "mini_foc_can.h"
 #include "mini_mpu6050.h"
 #include "mini_nrf24.h"
+#include "mini_pid.h"
 #include "mini_robot_config.h"
 #include "mini_status_led.h"
 #include "mini_ttl_servo.h"
 #include "mini_vofa.h"
 #include "spi.h"
 #include "usart.h"
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -23,6 +25,19 @@
 #define REMOTE_PACKET_VERSION          0x01U
 #define REMOTE_PACKET_CHECKSUM_LENGTH  30U
 #define REMOTE_AXIS_LIMIT              1000
+#define MINI_SERVO_SIDE_LEFT           0U
+#define MINI_SERVO_SIDE_RIGHT          1U
+#define MINI_SERVO_SIDE_ALL            0xFEU
+#define MINI_RAD_TO_DEG                57.2957795f
+
+typedef enum {
+    MINI_BALANCE_STATE_SLEEP = 0,
+    MINI_BALANCE_STATE_SERVO_SETTLE,
+    MINI_BALANCE_STATE_STAND,
+    MINI_BALANCE_STATE_RECOVER_FRONT,
+    MINI_BALANCE_STATE_RECOVER_BACK,
+    MINI_BALANCE_STATE_FAULT,
+} MiniBalanceState_t;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -55,6 +70,15 @@ static uint8_t remote_jump_request;
 static uint8_t telemetry_enabled = 0U;
 static uint8_t can_auto_tx_enabled = 0U;
 static uint8_t foc_direct_mode_enabled = 0U;
+static MiniBalanceState_t balance_state = MINI_BALANCE_STATE_SLEEP;
+static uint32_t balance_state_start_ms;
+static MiniPid_t balance_pitch_pid;
+static MiniPid_t balance_roll_pid;
+static uint32_t balance_fall_start_ms;
+static uint8_t balance_recover_count;
+static uint32_t balance_servo_last_ms;
+static uint32_t block_start_ms[MINI_ROBOT_WHEEL_COUNT];
+static uint8_t block_latched[MINI_ROBOT_WHEEL_COUNT];
 static uint32_t can1_boot_test_count;
 static uint32_t can2_boot_test_count;
 static volatile uint32_t ctrl_loop_count;
@@ -101,29 +125,55 @@ static uint16_t servo_delta(uint16_t a, uint16_t b)
     return (a > b) ? (a - b) : (b - a);
 }
 
-static uint8_t servo_id_from_command(uint8_t value)
+static uint8_t servo_side_from_command(uint8_t value)
 {
-    return (value == 0U) ? MINI_SERVO_LEFT_ID : value;
+    if (value == MINI_SERVO_SIDE_RIGHT || value == 2U) {
+        return MINI_SERVO_SIDE_RIGHT;
+    }
+    if (value == MINI_SERVO_SIDE_ALL) {
+        return MINI_SERVO_SIDE_ALL;
+    }
+    return MINI_SERVO_SIDE_LEFT;
 }
 
-static void update_servo_shadow(uint8_t id, uint16_t position)
+static uint8_t servo_id_from_side(uint8_t side)
 {
-    if (id == MINI_SERVO_LEFT_ID) {
+    if (side == MINI_SERVO_SIDE_ALL) {
+        return 0xFEU;
+    }
+    return (side == MINI_SERVO_SIDE_RIGHT) ? MINI_SERVO_RIGHT_ID : MINI_SERVO_LEFT_ID;
+}
+
+static const char *servo_side_name(uint8_t side)
+{
+    if (side == MINI_SERVO_SIDE_RIGHT) {
+        return "right";
+    }
+    if (side == MINI_SERVO_SIDE_ALL) {
+        return "all";
+    }
+    return "left";
+}
+
+static void update_servo_shadow(uint8_t side, uint16_t position)
+{
+    if (side == MINI_SERVO_SIDE_LEFT) {
         servo_pos[0] = position;
-    } else if (id == MINI_SERVO_RIGHT_ID) {
+    } else if (side == MINI_SERVO_SIDE_RIGHT) {
         servo_pos[1] = position;
     }
 }
 
-static void send_servo_status(const char *operation, uint8_t id, HAL_StatusTypeDef status)
+static void send_servo_status(const char *operation, uint8_t side, HAL_StatusTypeDef status)
 {
-    char message[56];
+    char message[80];
 
     snprintf(message,
              sizeof(message),
-             "servo %s id=%u st=%u\r\n",
+             "servo %s side=%s id=%u st=%u\r\n",
              operation,
-             (unsigned)id,
+             servo_side_name(side),
+             (unsigned)servo_id_from_side(side),
              (unsigned)status);
     MiniVofa_SendText(message);
 }
@@ -169,6 +219,455 @@ static void send_servo_readout(const MiniServoStatus_t *status, HAL_StatusTypeDe
                  (unsigned)status->temperature_c);
     }
     MiniVofa_SendText(message);
+}
+
+static void send_servo_scan(void)
+{
+    HAL_StatusTypeDef left;
+    HAL_StatusTypeDef right;
+    char message[96];
+
+    left = MiniServo_PingSide(MINI_SERVO_SIDE_LEFT);
+    snprintf(message,
+             sizeof(message),
+             "servo scan left usart10 id=%u st=%u\r\n",
+             (unsigned)MINI_SERVO_LEFT_ID,
+             (unsigned)left);
+    MiniVofa_SendText(message);
+    send_servo_packet("left_tx", MiniServo_GetLastTx);
+    send_servo_packet("left_rx", MiniServo_GetLastRx);
+
+    right = MiniServo_PingSide(MINI_SERVO_SIDE_RIGHT);
+    snprintf(message,
+             sizeof(message),
+             "servo scan right usart1 id=%u st=%u\r\n",
+             (unsigned)MINI_SERVO_RIGHT_ID,
+             (unsigned)right);
+    MiniVofa_SendText(message);
+    send_servo_packet("right_tx", MiniServo_GetLastTx);
+    send_servo_packet("right_rx", MiniServo_GetLastRx);
+}
+
+static const char *balance_state_name(MiniBalanceState_t state)
+{
+    switch (state) {
+    case MINI_BALANCE_STATE_SERVO_SETTLE:
+        return "servo_settle";
+    case MINI_BALANCE_STATE_STAND:
+        return "stand";
+    case MINI_BALANCE_STATE_RECOVER_FRONT:
+        return "recover_front";
+    case MINI_BALANCE_STATE_RECOVER_BACK:
+        return "recover_back";
+    case MINI_BALANCE_STATE_FAULT:
+        return "fault";
+    default:
+        return "sleep";
+    }
+}
+
+static float app_absf(float value)
+{
+    return (value >= 0.0f) ? value : -value;
+}
+
+static float app_clampf(float value, float limit)
+{
+    if (value > limit) {
+        return limit;
+    }
+    if (value < -limit) {
+        return -limit;
+    }
+    return value;
+}
+
+static uint16_t balance_aux_servo_position(float roll_rad)
+{
+    float normalized = app_clampf(roll_rad / MINI_BALANCE_ROLL_LIMIT_RAD, 1.0f);
+    float position = (float)MINI_SERVO_CENTER_POS +
+                     normalized * (float)MINI_BALANCE_SERVO_ROLL_RANGE;
+
+    return clamp_servo_position(position);
+}
+
+static void balance_reset_controllers(void)
+{
+    MiniPid_Reset(&balance_pitch_pid);
+    MiniPid_Reset(&balance_roll_pid);
+    balance_fall_start_ms = 0U;
+    balance_recover_count = 0U;
+    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i) {
+        block_start_ms[i] = 0U;
+        block_latched[i] = 0U;
+    }
+}
+
+static uint8_t imu_ready_for_balance(uint32_t now_ms)
+{
+    const MiniMpu6050Data_t *imu = MiniMpu6050_GetData();
+
+    if (imu == 0 || imu->online == 0U) {
+        return 0U;
+    }
+    if ((now_ms - imu->last_update_ms) > MINI_BALANCE_IMU_TIMEOUT_MS) {
+        return 0U;
+    }
+    if (fabsf(imu->pitch_rad - MINI_BALANCE_TARGET_PITCH_RAD) > MINI_BALANCE_PITCH_LIMIT_RAD) {
+        return 0U;
+    }
+    return 1U;
+}
+
+static uint8_t foc_feedback_ready(uint8_t index, uint32_t now_ms)
+{
+    const MiniFocMotor_t *motor = MiniFoc_GetMotor(index);
+
+    if (motor == 0 || motor->online == 0U) {
+        return 0U;
+    }
+    if ((now_ms - motor->last_rx_ms) > MINI_BALANCE_FOC_TIMEOUT_MS) {
+        return 0U;
+    }
+    return 1U;
+}
+
+static uint8_t foc_pair_feedback_ready(uint32_t now_ms)
+{
+    return (foc_feedback_ready(0U, now_ms) &&
+            foc_feedback_ready(1U, now_ms))
+               ? 1U
+               : 0U;
+}
+
+static const char *foc_feedback_fault_reason(uint32_t now_ms)
+{
+    uint8_t left_ok = foc_feedback_ready(0U, now_ms);
+    uint8_t right_ok = foc_feedback_ready(1U, now_ms);
+
+    if (left_ok && right_ok) {
+        return "foc_feedback_lost_transient";
+    }
+    if (!left_ok && !right_ok) {
+        return "foc_both_lost";
+    }
+    return left_ok ? "foc_right_lost" : "foc_left_lost";
+}
+
+static void balance_send_status(const char *reason)
+{
+    const MiniMpu6050Data_t *imu = MiniMpu6050_GetData();
+    const MiniFocMotor_t *left = MiniFoc_GetMotor(0U);
+    const MiniFocMotor_t *right = MiniFoc_GetMotor(1U);
+    uint32_t now_ms = HAL_GetTick();
+    char message[220];
+
+    snprintf(message,
+             sizeof(message),
+             "balance %s reason=%s pitch=%.4f rate=%.4f foc_l=%u/%lums foc_r=%u/%lums\r\n",
+             balance_state_name(balance_state),
+             (reason != 0) ? reason : "none",
+             (double)((imu != 0) ? imu->pitch_rad : 0.0f),
+             (double)((imu != 0) ? imu->pitch_rate_rps : 0.0f),
+             (unsigned)((left != 0) ? left->online : 0U),
+             (unsigned long)((left != 0) ? (now_ms - left->last_rx_ms) : 0U),
+             (unsigned)((right != 0) ? right->online : 0U),
+             (unsigned long)((right != 0) ? (now_ms - right->last_rx_ms) : 0U));
+    MiniVofa_SendText(message);
+}
+
+static void balance_enter_sleep(const char *reason)
+{
+    balance_state = MINI_BALANCE_STATE_SLEEP;
+    balance_state_start_ms = HAL_GetTick();
+    foc_direct_mode_enabled = 0U;
+    can_auto_tx_enabled = 0U;
+    balance_reset_controllers();
+    MiniChassis_Sleep();
+    MiniFoc_SetCommand(0U, MINI_FOC_MODE_STOP, 0.0f);
+    MiniFoc_SetCommand(1U, MINI_FOC_MODE_STOP, 0.0f);
+    MiniFoc_SendAll();
+    (void)MiniServo_TorqueEnableSide(MINI_SERVO_SIDE_ALL, 0U);
+    balance_send_status(reason);
+}
+
+static void balance_enter_fault(const char *reason)
+{
+    balance_state = MINI_BALANCE_STATE_FAULT;
+    balance_state_start_ms = HAL_GetTick();
+    foc_direct_mode_enabled = 0U;
+    can_auto_tx_enabled = 0U;
+    balance_reset_controllers();
+    MiniChassis_Sleep();
+    MiniFoc_SetCommand(0U, MINI_FOC_MODE_STOP, 0.0f);
+    MiniFoc_SetCommand(1U, MINI_FOC_MODE_STOP, 0.0f);
+    MiniFoc_SendAll();
+    (void)MiniServo_TorqueEnableSide(MINI_SERVO_SIDE_ALL, 0U);
+    balance_send_status(reason);
+}
+
+static void balance_request_stand(const char *reason)
+{
+    HAL_StatusTypeDef torque_status;
+    HAL_StatusTypeDef position_status;
+
+    foc_direct_mode_enabled = 0U;
+    can_auto_tx_enabled = 0U;
+    MiniChassis_Sleep();
+    MiniFoc_SetCommand(0U, MINI_FOC_MODE_STOP, 0.0f);
+    MiniFoc_SetCommand(1U, MINI_FOC_MODE_STOP, 0.0f);
+    MiniFoc_SendAll();
+    balance_reset_controllers();
+
+    torque_status = MiniServo_TorqueEnableSide(MINI_SERVO_SIDE_ALL, 1U);
+    position_status = MiniServo_WritePair(MINI_SERVO_STAND_LEFT_POS,
+                                          MINI_SERVO_STAND_RIGHT_POS,
+                                          MINI_SERVO_STAND_SPEED);
+    servo_pos[0] = MINI_SERVO_STAND_LEFT_POS;
+    servo_pos[1] = MINI_SERVO_STAND_RIGHT_POS;
+
+    balance_state = MINI_BALANCE_STATE_SERVO_SETTLE;
+    balance_state_start_ms = HAL_GetTick();
+    balance_send_status(reason);
+
+    {
+        char message[96];
+        snprintf(message,
+                 sizeof(message),
+                 "stand arm torque_st=%u pos_st=%u left=%u right=%u\r\n",
+                 (unsigned)torque_status,
+                 (unsigned)position_status,
+                 (unsigned)MINI_SERVO_STAND_LEFT_POS,
+                 (unsigned)MINI_SERVO_STAND_RIGHT_POS);
+        MiniVofa_SendText(message);
+    }
+}
+
+static uint8_t balance_is_active(void)
+{
+    return (balance_state == MINI_BALANCE_STATE_STAND ||
+            balance_state == MINI_BALANCE_STATE_RECOVER_FRONT ||
+            balance_state == MINI_BALANCE_STATE_RECOVER_BACK)
+               ? 1U
+               : 0U;
+}
+
+static void balance_set_wheel_current(float left_current, float right_current)
+{
+    MiniFoc_SetCommand(0U,
+                       MINI_FOC_MODE_CURRENT,
+                       app_clampf(left_current, MINI_BALANCE_PID_OUTPUT_LIMIT_A));
+    MiniFoc_SetCommand(1U,
+                       MINI_FOC_MODE_CURRENT,
+                       app_clampf(right_current, MINI_BALANCE_PID_OUTPUT_LIMIT_A));
+}
+
+static void balance_print_blocked(uint8_t wheel)
+{
+    char message[40];
+
+    snprintf(message, sizeof(message), "BLOCKED wheel=%u\r\n", (unsigned)(wheel + 1U));
+    MiniVofa_SendText(message);
+}
+
+static void balance_check_blocked(uint8_t wheel, float current_cmd, float speed_rps, uint32_t now_ms)
+{
+    if (wheel >= MINI_ROBOT_WHEEL_COUNT || block_latched[wheel]) {
+        return;
+    }
+
+    if (app_absf(current_cmd) > MINI_BLOCK_CURRENT_THRESHOLD_A &&
+        app_absf(speed_rps) < MINI_BLOCK_SPEED_THRESHOLD_RPS) {
+        if (block_start_ms[wheel] == 0U) {
+            block_start_ms[wheel] = now_ms;
+        } else if ((now_ms - block_start_ms[wheel]) >= MINI_BLOCK_CONFIRM_MS) {
+            block_latched[wheel] = 1U;
+            MiniFoc_SetCommand(wheel, MINI_FOC_MODE_STOP, 0.0f);
+            balance_print_blocked(wheel);
+            balance_enter_fault("wheel_blocked");
+        }
+    } else {
+        block_start_ms[wheel] = 0U;
+    }
+}
+
+static void balance_control_update(uint32_t now_ms, float dt_s)
+{
+    const MiniMpu6050Data_t *imu = MiniMpu6050_GetData();
+    const MiniFocMotor_t *left_motor = MiniFoc_GetMotor(0U);
+    const MiniFocMotor_t *right_motor = MiniFoc_GetMotor(1U);
+    float pitch_current;
+    float roll_current = 0.0f;
+    float left_current;
+    float right_current;
+
+    if (imu == 0 || balance_state == MINI_BALANCE_STATE_SLEEP ||
+        balance_state == MINI_BALANCE_STATE_FAULT) {
+        return;
+    }
+
+    if (balance_state == MINI_BALANCE_STATE_RECOVER_FRONT ||
+        balance_state == MINI_BALANCE_STATE_RECOVER_BACK) {
+        float sign = (balance_state == MINI_BALANCE_STATE_RECOVER_FRONT)
+                         ? MINI_BALANCE_FRONT_RECOVER_SIGN
+                         : MINI_BALANCE_BACK_RECOVER_SIGN;
+        float recover_current = sign * MINI_BALANCE_RECOVER_CURRENT_A;
+
+        balance_set_wheel_current(MINI_BALANCE_WHEEL_LEFT_SIGN * recover_current,
+                                  MINI_BALANCE_WHEEL_RIGHT_SIGN * recover_current);
+        return;
+    }
+
+    if (balance_state != MINI_BALANCE_STATE_STAND) {
+        return;
+    }
+
+    pitch_current =
+        MINI_BALANCE_PITCH_OUTPUT_SIGN *
+        MiniPid_Calc(&balance_pitch_pid,
+                     MINI_BALANCE_TARGET_PITCH_RAD,
+                     imu->pitch_rad,
+                     dt_s);
+
+    if (app_absf(imu->roll_rad) > MINI_BALANCE_ROLL_LIMIT_RAD) {
+        roll_current = MiniPid_Calc(&balance_roll_pid, 0.0f, imu->roll_rad, dt_s);
+    } else {
+        MiniPid_Reset(&balance_roll_pid);
+    }
+
+    left_current = MINI_BALANCE_WHEEL_LEFT_SIGN * (pitch_current + roll_current);
+    right_current = MINI_BALANCE_WHEEL_RIGHT_SIGN * (pitch_current - roll_current);
+    balance_set_wheel_current(left_current, right_current);
+
+    balance_check_blocked(0U,
+                          left_current,
+                          (left_motor != 0) ? left_motor->speed_rps : 0.0f,
+                          now_ms);
+    balance_check_blocked(1U,
+                          right_current,
+                          (right_motor != 0) ? right_motor->speed_rps : 0.0f,
+                          now_ms);
+}
+
+static void balance_start_recovery(uint32_t now_ms, uint8_t front_fall)
+{
+    HAL_StatusTypeDef servo_status;
+
+    if (balance_recover_count >= MINI_BALANCE_RECOVER_MAX_TRY) {
+        balance_enter_fault("recover_failed");
+        return;
+    }
+
+    balance_recover_count++;
+    balance_state = front_fall ? MINI_BALANCE_STATE_RECOVER_FRONT : MINI_BALANCE_STATE_RECOVER_BACK;
+    balance_state_start_ms = now_ms;
+    can_auto_tx_enabled = 1U;
+    MiniPid_Reset(&balance_pitch_pid);
+    MiniPid_Reset(&balance_roll_pid);
+
+    servo_status = MiniServo_WritePositionSide(MINI_BALANCE_SERVO_AUX_SIDE,
+                                               front_fall ? MINI_BALANCE_SERVO_BACKWARD_POS
+                                                          : MINI_BALANCE_SERVO_FORWARD_POS,
+                                               MINI_SERVO_MOVE_TIME_MS,
+                                               MINI_SERVO_MOVE_SPEED);
+    {
+        char message[80];
+        snprintf(message,
+                 sizeof(message),
+                 "recover start dir=%s try=%u servo_st=%u\r\n",
+                 front_fall ? "front" : "back",
+                 (unsigned)balance_recover_count,
+                 (unsigned)servo_status);
+        MiniVofa_SendText(message);
+    }
+    balance_send_status("fall_detected");
+}
+
+static void balance_step(uint32_t now_ms)
+{
+    const MiniMpu6050Data_t *imu = MiniMpu6050_GetData();
+
+    if (balance_state == MINI_BALANCE_STATE_SERVO_SETTLE) {
+        if ((now_ms - balance_state_start_ms) < MINI_BALANCE_STAND_SETTLE_MS) {
+            return;
+        }
+        if (!imu_ready_for_balance(now_ms)) {
+            balance_enter_fault("imu_not_ready_or_tilt");
+            return;
+        }
+        balance_reset_controllers();
+        can_auto_tx_enabled = 1U;
+        balance_state = MINI_BALANCE_STATE_STAND;
+        balance_state_start_ms = now_ms;
+        balance_send_status("pid_on");
+        return;
+    }
+
+    if (balance_state == MINI_BALANCE_STATE_STAND) {
+        if ((now_ms - balance_state_start_ms) > MINI_BALANCE_FOC_GRACE_MS &&
+            !foc_pair_feedback_ready(now_ms)) {
+            balance_enter_fault(foc_feedback_fault_reason(now_ms));
+            return;
+        }
+        if (imu == 0 ||
+            imu->online == 0U ||
+            (now_ms - imu->last_update_ms) > MINI_BALANCE_IMU_TIMEOUT_MS) {
+            balance_enter_fault("imu_timeout");
+            return;
+        }
+        if (fabsf(imu->pitch_rad - MINI_BALANCE_TARGET_PITCH_RAD) > MINI_BALANCE_PITCH_LIMIT_RAD) {
+            if (app_absf(imu->pitch_rad - MINI_BALANCE_TARGET_PITCH_RAD) >
+                MINI_BALANCE_FALL_ANGLE_RAD) {
+                if (balance_fall_start_ms == 0U) {
+                    balance_fall_start_ms = now_ms;
+                } else if ((now_ms - balance_fall_start_ms) >= MINI_BALANCE_FALL_CONFIRM_MS) {
+                    balance_start_recovery(now_ms,
+                                           (imu->pitch_rad > MINI_BALANCE_TARGET_PITCH_RAD) ? 1U : 0U);
+                }
+            } else {
+                balance_fall_start_ms = 0U;
+                balance_enter_fault("pitch_limit");
+            }
+            return;
+        }
+        balance_fall_start_ms = 0U;
+        if (app_absf(imu->roll_rad) > MINI_BALANCE_ROLL_LIMIT_RAD &&
+            (now_ms - balance_servo_last_ms) >= MINI_BALANCE_SERVO_UPDATE_MS) {
+            balance_servo_last_ms = now_ms;
+            (void)MiniServo_WritePositionSide(MINI_BALANCE_SERVO_AUX_SIDE,
+                                              balance_aux_servo_position(imu->roll_rad),
+                                              MINI_SERVO_MOVE_TIME_MS,
+                                              MINI_SERVO_MOVE_SPEED);
+        }
+        return;
+    }
+
+    if (balance_state == MINI_BALANCE_STATE_RECOVER_FRONT ||
+        balance_state == MINI_BALANCE_STATE_RECOVER_BACK) {
+        if (imu == 0 ||
+            imu->online == 0U ||
+            (now_ms - imu->last_update_ms) > MINI_BALANCE_IMU_TIMEOUT_MS) {
+            balance_enter_fault("imu_timeout");
+            return;
+        }
+        if (app_absf(imu->pitch_rad - MINI_BALANCE_TARGET_PITCH_RAD) <
+            MINI_BALANCE_RECOVER_SUCCESS_RAD) {
+            balance_state = MINI_BALANCE_STATE_SERVO_SETTLE;
+            balance_state_start_ms = now_ms;
+            MiniFoc_SetCommand(0U, MINI_FOC_MODE_STOP, 0.0f);
+            MiniFoc_SetCommand(1U, MINI_FOC_MODE_STOP, 0.0f);
+            (void)MiniServo_WritePositionSide(MINI_BALANCE_SERVO_AUX_SIDE,
+                                              MINI_SERVO_CENTER_POS,
+                                              MINI_SERVO_MOVE_TIME_MS,
+                                              MINI_SERVO_MOVE_SPEED);
+            balance_send_status("recover_ok");
+            return;
+        }
+        if ((now_ms - balance_state_start_ms) >= MINI_BALANCE_RECOVER_TIME_MS) {
+            balance_start_recovery(now_ms,
+                                   (imu->pitch_rad > MINI_BALANCE_TARGET_PITCH_RAD) ? 1U : 0U);
+        }
+    }
 }
 
 static void send_can_status_line(const char *name, FDCAN_HandleTypeDef *hfdcan)
@@ -236,6 +735,47 @@ static void send_can_status_line(const char *name, FDCAN_HandleTypeDef *hfdcan)
     MiniVofa_SendText(message);
 }
 
+static void send_foc_status(void)
+{
+    const MiniFocMotor_t *left = MiniFoc_GetMotor(0U);
+    const MiniFocMotor_t *right = MiniFoc_GetMotor(1U);
+    uint32_t now_ms = HAL_GetTick();
+    char message[220];
+
+    snprintf(message,
+             sizeof(message),
+             "foc l:on=%u age=%lums mode=%u cmd=%.4f spd=%.4f pos=%.4f | r:on=%u age=%lums mode=%u cmd=%.4f spd=%.4f pos=%.4f\r\n",
+             (unsigned)((left != 0) ? left->online : 0U),
+             (unsigned long)((left != 0) ? (now_ms - left->last_rx_ms) : 0U),
+             (unsigned)((left != 0) ? left->mode : MINI_FOC_MODE_STOP),
+             (double)((left != 0) ? left->command : 0.0f),
+             (double)((left != 0) ? left->speed_rps : 0.0f),
+             (double)((left != 0) ? left->position_rad : 0.0f),
+             (unsigned)((right != 0) ? right->online : 0U),
+             (unsigned long)((right != 0) ? (now_ms - right->last_rx_ms) : 0U),
+             (unsigned)((right != 0) ? right->mode : MINI_FOC_MODE_STOP),
+             (double)((right != 0) ? right->command : 0.0f),
+             (double)((right != 0) ? right->speed_rps : 0.0f),
+             (double)((right != 0) ? right->position_rad : 0.0f));
+    MiniVofa_SendText(message);
+}
+
+static void send_attitude_text(const MiniMpu6050Data_t *imu)
+{
+    char message[80];
+
+    if (imu == 0) {
+        return;
+    }
+    snprintf(message,
+             sizeof(message),
+             "x:%.2f y:%.2f z:%.2f\n",
+             (double)(imu->roll_rad * MINI_RAD_TO_DEG),
+             (double)(imu->pitch_rad * MINI_RAD_TO_DEG),
+             (double)(imu->yaw_rad * MINI_RAD_TO_DEG));
+    MiniVofa_SendText(message);
+}
+
 static void send_can_status(void)
 {
     char message[96];
@@ -249,6 +789,7 @@ static void send_can_status(void)
     MiniVofa_SendText(message);
     send_can_status_line("can1", &hfdcan1);
     send_can_status_line("can2", &hfdcan2);
+    send_foc_status();
 }
 
 static void send_can_boot_test_frame(FDCAN_HandleTypeDef *hfdcan,
@@ -296,9 +837,20 @@ static void send_can_boot_test_all(void)
 #endif
 }
 
+static uint8_t foc_any_direct_command_active(void)
+{
+    const MiniFocMotor_t *left = MiniFoc_GetMotor(0U);
+    const MiniFocMotor_t *right = MiniFoc_GetMotor(1U);
+
+    return ((left != 0 && left->mode != MINI_FOC_MODE_STOP) ||
+            (right != 0 && right->mode != MINI_FOC_MODE_STOP))
+               ? 1U
+               : 0U;
+}
+
 static void apply_vofa_command(const MiniVofaCommand_t *cmd)
 {
-    uint8_t id;
+    uint8_t side;
     uint16_t position;
     HAL_StatusTypeDef result;
 
@@ -319,11 +871,18 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
         break;
     case MINI_VOFA_CMD_STOP:
         foc_direct_mode_enabled = 0U;
+        balance_state = MINI_BALANCE_STATE_SLEEP;
         MiniChassis_SetEnabled(0U);
         MiniFoc_SetCommand(0U, MINI_FOC_MODE_STOP, 0.0f);
         MiniFoc_SetCommand(1U, MINI_FOC_MODE_STOP, 0.0f);
         MiniFoc_SendAll();
         can_auto_tx_enabled = 0U;
+        break;
+    case MINI_VOFA_CMD_STAND:
+        balance_request_stand("cmd");
+        break;
+    case MINI_VOFA_CMD_SLEEP:
+        balance_enter_sleep("cmd");
         break;
     case MINI_VOFA_CMD_TELEMETRY: {
         char message[32];
@@ -371,7 +930,12 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
         HAL_StatusTypeDef status;
 
         status = MiniFoc_CommandNode(cmd->index, (MiniFocMode_t)cmd->mode, cmd->a);
-        foc_direct_mode_enabled = (cmd->mode == MINI_FOC_MODE_STOP) ? 0U : 1U;
+        if (cmd->mode == MINI_FOC_MODE_STOP) {
+            foc_direct_mode_enabled =
+                (cmd->index == 0U) ? 0U : foc_any_direct_command_active();
+        } else {
+            foc_direct_mode_enabled = 1U;
+        }
         can_auto_tx_enabled = 0U;
         snprintf(message,
                  sizeof(message),
@@ -383,6 +947,10 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
         MiniVofa_SendText(message);
         break;
     }
+    case MINI_VOFA_CMD_BLOCK_RESET:
+        balance_reset_controllers();
+        MiniVofa_SendText("block reset ok\r\n");
+        break;
     case MINI_VOFA_CMD_WHEEL_POS:
         foc_direct_mode_enabled = 0U;
         MiniChassis_SetWheelPosition(cmd->a, cmd->b);
@@ -423,35 +991,37 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
         MiniChassis_SetLqrOutputLimit(cmd->a);
         break;
     case MINI_VOFA_CMD_SERVO_POS:
-        id = servo_id_from_command(cmd->index);
+        side = servo_side_from_command(cmd->index);
         position = clamp_servo_position(cmd->a);
-        result = MiniServo_WritePosition(id,
-                                         position,
-                                         MINI_SERVO_MOVE_TIME_MS,
-                                         MINI_SERVO_MOVE_SPEED);
+        result = MiniServo_WritePositionSide(side,
+                                             position,
+                                             MINI_SERVO_MOVE_TIME_MS,
+                                             MINI_SERVO_MOVE_SPEED);
         if (result == HAL_OK) {
-            update_servo_shadow(id, position);
+            update_servo_shadow(side, position);
         }
-        send_servo_status("pos", id, result);
+        send_servo_status("pos", side, result);
         send_servo_packet("tx", MiniServo_GetLastTx);
+        send_servo_packet("rx", MiniServo_GetLastRx);
         break;
     case MINI_VOFA_CMD_SERVO_PING:
-        id = servo_id_from_command(cmd->index);
-        result = MiniServo_Ping(id);
-        send_servo_status("ping", id, result);
+        side = servo_side_from_command(cmd->index);
+        result = MiniServo_PingSide(side);
+        send_servo_status("ping", side, result);
         send_servo_packet("tx", MiniServo_GetLastTx);
         send_servo_packet("rx", MiniServo_GetLastRx);
         break;
     case MINI_VOFA_CMD_SERVO_TORQUE:
-        id = servo_id_from_command(cmd->index);
-        result = MiniServo_TorqueEnable(id, cmd->enable);
-        send_servo_status(cmd->enable ? "torque_on" : "torque_off", id, result);
+        side = servo_side_from_command(cmd->index);
+        result = MiniServo_TorqueEnableSide(side, cmd->enable);
+        send_servo_status(cmd->enable ? "torque_on" : "torque_off", side, result);
         send_servo_packet("tx", MiniServo_GetLastTx);
+        send_servo_packet("rx", MiniServo_GetLastRx);
         break;
     case MINI_VOFA_CMD_SERVO_READ: {
         MiniServoStatus_t status;
-        id = servo_id_from_command(cmd->index);
-        result = MiniServo_ReadStatus(id, &status);
+        side = servo_side_from_command(cmd->index);
+        result = MiniServo_ReadStatusSide(side, &status);
         send_servo_packet("tx", MiniServo_GetLastTx);
         send_servo_packet("rx", MiniServo_GetLastRx);
         send_servo_readout(&status, result);
@@ -469,6 +1039,28 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
         MiniVofa_SendText(message);
         break;
     }
+    case MINI_VOFA_CMD_SERVO_PROBE: {
+        MiniServoDebug_t debug;
+        char message[192];
+
+        side = servo_side_from_command(cmd->index);
+        result = MiniServo_DebugProbeSide(side, &debug);
+        snprintf(message,
+                 sizeof(message),
+                 "servo probe side=%s id=%u st=%u txst=%u len=%u isr0=0x%08lX isr1=0x%08lX err=0x%08lX\r\n",
+                 servo_side_name(side),
+                 (unsigned)servo_id_from_side(side),
+                 (unsigned)result,
+                 (unsigned)debug.tx_status,
+                 (unsigned)debug.length,
+                 (unsigned long)debug.isr_before,
+                 (unsigned long)debug.isr_after,
+                 (unsigned long)debug.error_flags);
+        MiniVofa_SendText(message);
+        send_servo_packet("tx", MiniServo_GetLastTx);
+        send_servo_packet("rxraw", MiniServo_GetLastRx);
+        break;
+    }
     case MINI_VOFA_CMD_SERVO_PAIR: {
         uint16_t left = clamp_servo_position(cmd->a);
         uint16_t right = clamp_servo_position(cmd->b);
@@ -477,10 +1069,14 @@ static void apply_vofa_command(const MiniVofaCommand_t *cmd)
             servo_pos[0] = left;
             servo_pos[1] = right;
         }
-        send_servo_status("pair", 0xFEU, result);
+        send_servo_status("pair", MINI_SERVO_SIDE_ALL, result);
         send_servo_packet("tx", MiniServo_GetLastTx);
+        send_servo_packet("rx", MiniServo_GetLastRx);
         break;
     }
+    case MINI_VOFA_CMD_SERVO_SCAN:
+        send_servo_scan();
+        break;
     case MINI_VOFA_CMD_SERVO_SHUTDOWN:
         MiniChassis_RequestServoShutdown();
         break;
@@ -547,12 +1143,29 @@ void MiniRobot_Init(void)
 {
     HAL_StatusTypeDef mpu_status;
     HAL_StatusTypeDef nrf_status;
+    MiniPidParam_t balance_pitch_param = {
+        .kp = MINI_BALANCE_PID_KP,
+        .ki = MINI_BALANCE_PID_KI,
+        .kd = MINI_BALANCE_PID_KD,
+        .integral_limit = MINI_BALANCE_PID_INTEGRAL_LIMIT,
+        .output_limit = MINI_BALANCE_PID_OUTPUT_LIMIT_A,
+    };
+    MiniPidParam_t balance_roll_param = {
+        .kp = MINI_BALANCE_ROLL_PID_KP,
+        .ki = MINI_BALANCE_ROLL_PID_KI,
+        .kd = MINI_BALANCE_ROLL_PID_KD,
+        .integral_limit = MINI_BALANCE_PID_INTEGRAL_LIMIT,
+        .output_limit = MINI_BALANCE_ROLL_OUTPUT_LIMIT_A,
+    };
     char message[96];
 
     MiniStatusLed_Init();
     MiniFoc_Init();
     MiniChassis_Init();
-    MiniServo_Init(&huart1, &huart10);
+    MiniPid_Init(&balance_pitch_pid, &balance_pitch_param);
+    MiniPid_Init(&balance_roll_pid, &balance_roll_param);
+    balance_reset_controllers();
+    MiniServo_Init(&huart10, &huart1);
 
     (void)CAN1_Filter_Init();
     (void)CAN2_Filter_Init();
@@ -563,7 +1176,7 @@ void MiniRobot_Init(void)
 
     MiniVofa_SendText("\r\nmini controller v2 init\r\n");
     MiniVofa_SendText("pc: uart7 pe7/pe8 115200 8N1\r\n");
-    MiniVofa_SendText("servos: usart1 pa9/pa10, usart10 pe3/pe2, 1Mbps\r\n");
+    MiniVofa_SendText("servos swapped test: left usart10 pe3/pe2, right usart1 pa9/pa10, 1Mbps\r\n");
     MiniVofa_SendText("telemetry default off, send telemetry 1 for JustFloat\r\n");
     MiniVofa_SendText("can auto default off, use can tx 1/2 for single-frame test\r\n");
 #if MINI_CAN_BOOT_TEST_ENABLE
@@ -575,15 +1188,25 @@ void MiniRobot_Init(void)
              (unsigned)mpu_status,
              (unsigned)nrf_status);
     MiniVofa_SendText(message);
-    MiniVofa_SendText("safe boot: motors stopped, no servo command sent\r\n");
+    MiniVofa_SendText("balance cmd: stand = servo support + pitch PID wheels, sleep = motor stop + servo torque off\r\n");
+#if MINI_ROBOT_AUTO_STAND_ON_BOOT
+    balance_request_stand("boot");
+#else
+    MiniVofa_SendText("safe boot: sleep state, send stand to balance\r\n");
+#endif
 }
 
 void MiniRobot_ControlStep(void)
 {
-    if (foc_direct_mode_enabled == 0U) {
+    uint32_t now_ms = HAL_GetTick();
+
+    MiniStatusLed_Update(now_ms);
+    if (balance_is_active()) {
+        balance_control_update(now_ms, (float)MINI_ROBOT_CONTROL_PERIOD_MS * 0.001f);
+    } else if (foc_direct_mode_enabled == 0U) {
         MiniChassis_Update((float)MINI_ROBOT_CONTROL_PERIOD_MS * 0.001f);
     }
-    MiniFoc_Heartbeat(HAL_GetTick());
+    MiniFoc_Heartbeat(now_ms);
 }
 
 void MiniRobot_TelemetryStep(void)
@@ -599,6 +1222,9 @@ void MiniRobot_TelemetryStep(void)
     if (MiniMpu6050_Update((float)MINI_MPU6050_UPDATE_PERIOD_MS * 0.001f) == HAL_OK) {
         imu = MiniMpu6050_GetData();
         MiniChassis_SetMeasuredAttitude(imu->pitch_rad, imu->pitch_rate_rps);
+        if (balance_state == MINI_BALANCE_STATE_STAND) {
+            send_attitude_text(imu);
+        }
     }
 
     memset(&telemetry, 0, sizeof(telemetry));
@@ -646,6 +1272,7 @@ void MiniRobot_CommandStep(void)
 
     poll_remote(now_ms);
     MiniServo_Poll(now_ms);
+    balance_step(now_ms);
 
     if (MiniChassis_GetCommand()->servo_shutdown_request) {
         if (MiniServo_ShutdownPose() == HAL_OK) {
@@ -701,6 +1328,8 @@ void StartCtrlTask(void *argument)
         if (can_elapsed_ms >= MINI_ROBOT_CAN_PERIOD_MS) {
             can_elapsed_ms = 0U;
             if (can_auto_tx_enabled) {
+                MiniFoc_SendAll();
+            } else if (foc_direct_mode_enabled) {
                 MiniFoc_SendAll();
             }
         }

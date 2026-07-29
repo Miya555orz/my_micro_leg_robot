@@ -31,6 +31,7 @@ void MiniChassis_Init(void)
     command.vx_mps = 0.0f;
     command.wz_rps = 0.0f;
     command.enabled = 0U;
+    command.balance_stand = 0U;
     command.servo_shutdown_request = 0U;
     command.last_command_ms = HAL_GetTick();
     position_mode = 0U;
@@ -51,6 +52,7 @@ void MiniChassis_Init(void)
     }
     state.lqr_enabled = 0U;
     state.safe = 1U;
+    state.fault = 0U;
 }
 
 void MiniChassis_SetEnabled(uint8_t enabled)
@@ -60,7 +62,9 @@ void MiniChassis_SetEnabled(uint8_t enabled)
     if (!command.enabled) {
         command.vx_mps = 0.0f;
         command.wz_rps = 0.0f;
+        command.balance_stand = 0U;
         position_mode = 0U;
+        MiniLqr_SetEnabled(&lqr, 0U);
     }
 }
 
@@ -80,6 +84,53 @@ void MiniChassis_SetWheelPosition(float left_rad, float right_rad)
     command.enabled = 1U;
     position_mode = 1U;
     command.last_command_ms = HAL_GetTick();
+}
+
+void MiniChassis_Stand(float pitch_target_rad)
+{
+    MiniFocMotor_t *left_motor = MiniFoc_GetMotor(0U);
+    MiniFocMotor_t *right_motor = MiniFoc_GetMotor(1U);
+    float target[MINI_LQR_STATE_DIM] = {
+        pitch_target_rad,
+        0.0f,
+        (left_motor != 0) ? left_motor->position_rad : 0.0f,
+        0.0f,
+        (right_motor != 0) ? right_motor->position_rad : 0.0f,
+        0.0f,
+    };
+
+    command.vx_mps = 0.0f;
+    command.wz_rps = 0.0f;
+    command.enabled = 1U;
+    command.balance_stand = 1U;
+    command.last_command_ms = HAL_GetTick();
+    position_mode = 0U;
+    state.fault = 0U;
+    MiniLqr_SetTarget(&lqr, target);
+    MiniLqr_SetOutputLimit(&lqr, MINI_BALANCE_LQR_OUTPUT_LIMIT_A);
+    MiniLqr_SetEnabled(&lqr, 1U);
+    state.lqr_enabled = 1U;
+}
+
+void MiniChassis_Sleep(void)
+{
+    command.vx_mps = 0.0f;
+    command.wz_rps = 0.0f;
+    command.enabled = 0U;
+    command.balance_stand = 0U;
+    command.last_command_ms = HAL_GetTick();
+    position_mode = 0U;
+    state.fault = 0U;
+    MiniLqr_SetEnabled(&lqr, 0U);
+    state.lqr_enabled = 0U;
+    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i) {
+        MiniPid_Reset(&speed_pid[i]);
+        MiniPid_Reset(&position_pid[i]);
+        state.wheel_target_rps[i] = 0.0f;
+        state.wheel_current_cmd[i] = 0.0f;
+        state.lqr_output[i] = 0.0f;
+        MiniFoc_SetCommand(i, MINI_FOC_MODE_STOP, 0.0f);
+    }
 }
 
 void MiniChassis_SetLqrEnabled(uint8_t enabled)
@@ -197,9 +248,13 @@ void MiniChassis_Update(float dt_s)
         state.lqr_state[i] = lqr.x[i];
     }
 
-    state.safe = ((now - command.last_command_ms) <= MINI_ROBOT_COMMAND_TIMEOUT_MS) ? 1U : 0U;
+    state.safe = (command.balance_stand ||
+                  ((now - command.last_command_ms) <= MINI_ROBOT_COMMAND_TIMEOUT_MS))
+                     ? 1U
+                     : 0U;
     if (!state.safe) {
         command.enabled = 0U;
+        command.balance_stand = 0U;
         command.vx_mps = 0.0f;
         command.wz_rps = 0.0f;
         position_mode = 0U;
@@ -207,6 +262,21 @@ void MiniChassis_Update(float dt_s)
     }
 
     if (lqr.enabled && command.enabled && state.safe) {
+        const float left_target_rps =
+            clampf(left_mps / (6.2831853f * MINI_ROBOT_WHEEL_RADIUS_M),
+                   MINI_ROBOT_MAX_WHEEL_SPEED_RPS);
+        const float right_target_rps =
+            clampf(right_mps / (6.2831853f * MINI_ROBOT_WHEEL_RADIUS_M),
+                   MINI_ROBOT_MAX_WHEEL_SPEED_RPS);
+
+        state.wheel_target_rps[0] = left_target_rps;
+        state.wheel_target_rps[1] = right_target_rps;
+        lqr.model.x_ref[3] = left_target_rps;
+        lqr.model.x_ref[5] = right_target_rps;
+        if (left_target_rps != 0.0f || right_target_rps != 0.0f) {
+            lqr.model.x_ref[2] = lqr.x[2];
+            lqr.model.x_ref[4] = lqr.x[4];
+        }
         MiniLqr_Calc(&lqr);
         for (uint8_t i = 0U; i < MINI_LQR_INPUT_DIM; ++i) {
             state.lqr_output[i] = lqr.u[i];

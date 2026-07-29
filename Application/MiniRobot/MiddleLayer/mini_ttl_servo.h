@@ -16,8 +16,21 @@ typedef struct {
     uint16_t current;
 } MiniServoStatus_t;
 
+typedef struct {
+    HAL_StatusTypeDef tx_status;
+    uint32_t isr_before;
+    uint32_t isr_after;
+    uint32_t error_flags;
+    uint8_t length;
+} MiniServoDebug_t;
+
 void MiniServo_Init(UART_HandleTypeDef *left_uart, UART_HandleTypeDef *right_uart);
 HAL_StatusTypeDef MiniServo_SetBaud(uint32_t baud);
+HAL_StatusTypeDef MiniServo_PingSide(uint8_t side);
+HAL_StatusTypeDef MiniServo_TorqueEnableSide(uint8_t side, uint8_t enable);
+HAL_StatusTypeDef MiniServo_ReadStatusSide(uint8_t side, MiniServoStatus_t *status);
+HAL_StatusTypeDef MiniServo_WritePositionSide(uint8_t side, uint16_t position, uint16_t time_ms, uint16_t speed);
+HAL_StatusTypeDef MiniServo_DebugProbeSide(uint8_t side, MiniServoDebug_t *debug);
 HAL_StatusTypeDef MiniServo_Ping(uint8_t id);
 HAL_StatusTypeDef MiniServo_TorqueEnable(uint8_t id, uint8_t enable);
 HAL_StatusTypeDef MiniServo_ReadStatus(uint8_t id, MiniServoStatus_t *status);

@@ -27,7 +27,45 @@
 | nRF24L01 控制 | CE=PC4，CSN=PC5 | CE 下拉，CSN 上拉 |
 | SWD | SWDIO=PA13，SWCLK=PA14 | 下载与调试 |
 
-USART1/USART10 是 MCU 的全双工串口。STS3032 的三线单总线信号需要外部半双工/全双工转换电路，不能把 TX 和 RX 直接硬短接。舵机电源地必须与主控地共地。默认左舵机 ID=1，右舵机 ID=2。
+USART1/USART10 是 MCU 的全双工串口。STS3032 的三线单总线信号需要外部半双工/全双工转换电路，不能把 TX 和 RX 直接硬短接。舵机电源地必须与主控地共地。左右舵机在两条独立串口总线上，默认都使用舵机 ID=1。
+
+### STS3032 舵机链路测试
+
+半双工转全双工板到位后，按下面方式连接：
+
+| 链路 | 主控接口 | 转接板 MCU 侧 | 舵机侧 |
+| --- | --- | --- | --- |
+| 左关节舵机 | USART1 PA9/PA10 | TX/RX/GND | STS3032 单线信号/12V/GND |
+| 右关节舵机 | USART10 PE3/PE2 | TX/RX/GND | STS3032 单线信号/12V/GND |
+
+舵机供电使用 12V，主控和舵机电源必须共地。主控 TX 接转接板 RX，主控 RX 接转接板 TX；如果 `servo ping` 超时但示波器能看到 TX 波形，优先检查转接板 RX 方向和舵机侧单线信号。
+
+推荐测试顺序：
+
+```text
+telemetry 0
+servo scan
+servo ping l
+servo read l
+servo torque l 1
+servo pos l 2048
+servo pos l 1800
+servo pos l 2048
+
+servo ping r
+servo read r
+servo torque r 1
+servo pos r 2048
+servo pos r 2296
+servo pos r 2048
+
+servo pair 1800 2296
+servo pair 2048 2048
+```
+
+`l/left/1` 固定走 USART1，`r/right/2` 固定走 USART10；两条总线内发送的舵机物理 ID 默认都是 `1`。每次舵机测试命令都会通过 UART7 打印 `servo tx ...` 和尽可能解析到的 `servo rx ...`；HAL 状态 `st=0` 表示本次 TX/RX 协议检查通过。
+
+当前 STS3032 位置命令参考 `Micro-Wheeled_leg-Robot/3.Software` 的实现，从地址 `0x29` 连续写入 `ACC + Position + Time + Speed` 共 7 字节，不再使用旧版只从 `0x2A` 写 6 字节的格式。
 
 ## 指示灯
 
@@ -87,6 +125,8 @@ enable 1
 pos 6.28 6.28
 
 servo ping 1
+servo ping l
+servo scan
 servo read 1
 servo torque 1 1
 servo pos 1 2048

@@ -14,6 +14,7 @@ typedef struct {
     float vx_mps;
     float wz_rps;
     uint8_t enabled;
+    uint8_t balance_stand;
     uint8_t servo_shutdown_request;
     uint32_t last_command_ms;
 } MiniChassisCommand_t;
@@ -25,12 +26,15 @@ typedef struct {
     float lqr_output[MINI_LQR_INPUT_DIM];
     uint8_t lqr_enabled;
     uint8_t safe;
+    uint8_t fault;
 } MiniChassisState_t;
 
 void MiniChassis_Init(void);
 void MiniChassis_SetEnabled(uint8_t enabled);
 void MiniChassis_SetVelocity(float vx_mps, float wz_rps);
 void MiniChassis_SetWheelPosition(float left_rad, float right_rad);
+void MiniChassis_Stand(float pitch_target_rad);
+void MiniChassis_Sleep(void);
 void MiniChassis_SetPid(MiniPidSlot_t slot, uint8_t wheel, float kp, float ki, float kd);
 void MiniChassis_SetLqrEnabled(uint8_t enabled);
 void MiniChassis_SetLqrGain(uint8_t input, uint8_t state, float value);

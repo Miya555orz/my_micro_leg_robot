@@ -8,8 +8,12 @@ typedef struct {
     float accel_mps2[3];
     float gyro_rps[3];
     float temperature_c;
+    float roll_rad;
     float pitch_rad;
+    float yaw_rad;
+    float roll_rate_rps;
     float pitch_rate_rps;
+    float yaw_rate_rps;
     uint8_t online;
     uint32_t last_update_ms;
 } MiniMpu6050Data_t;
