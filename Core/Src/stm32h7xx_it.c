@@ -5,6 +5,7 @@ extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern DMA_HandleTypeDef hdma_uart7_rx;
 extern UART_HandleTypeDef huart7;
+extern UART_HandleTypeDef huart10;
 extern TIM_HandleTypeDef htim2;
 
 void NMI_Handler(void)
@@ -64,4 +65,9 @@ void DMA1_Stream7_IRQHandler(void)
 void UART7_IRQHandler(void)
 {
     HAL_UART_IRQHandler(&huart7);
+}
+
+void USART10_IRQHandler(void)
+{
+    HAL_UART_IRQHandler(&huart10);
 }

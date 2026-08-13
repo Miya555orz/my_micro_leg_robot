@@ -115,6 +115,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef *uartHandle)
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
         GPIO_InitStruct.Alternate = GPIO_AF11_USART10;
         HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+        HAL_NVIC_SetPriority(USART10_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(USART10_IRQn);
     }
 }
 
@@ -131,5 +134,6 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *uartHandle)
     } else if (uartHandle->Instance == USART10) {
         __HAL_RCC_USART10_CLK_DISABLE();
         HAL_GPIO_DeInit(GPIOE, GPIO_PIN_2 | GPIO_PIN_3);
+        HAL_NVIC_DisableIRQ(USART10_IRQn);
     }
 }

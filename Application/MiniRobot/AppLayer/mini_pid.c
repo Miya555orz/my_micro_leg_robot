@@ -1,3 +1,11 @@
+/**
+ ******************************************************************************
+ * @file    mini_pid.c
+ * @brief   Reusable PID controller implementation for wheel, posture, and auxiliary control loops.
+ * @author  Miya Zheng
+ * @date    2026-07-29
+ ******************************************************************************
+ */
 #include "mini_pid.h"
 
 static float mini_absf(float v)
@@ -7,13 +15,16 @@ static float mini_absf(float v)
 
 static float mini_clampf(float v, float limit)
 {
-    if (limit <= 0.0f) {
+    if (limit <= 0.0f)
+    {
         return v;
     }
-    if (v > limit) {
+    if (v > limit)
+    {
         return limit;
     }
-    if (v < -limit) {
+    if (v < -limit)
+    {
         return -limit;
     }
     return v;
@@ -21,7 +32,8 @@ static float mini_clampf(float v, float limit)
 
 void MiniPid_Init(MiniPid_t *pid, const MiniPidParam_t *param)
 {
-    if (pid == 0 || param == 0) {
+    if (pid == 0 || param == 0)
+    {
         return;
     }
     pid->param = *param;
@@ -30,7 +42,8 @@ void MiniPid_Init(MiniPid_t *pid, const MiniPidParam_t *param)
 
 void MiniPid_SetParam(MiniPid_t *pid, const MiniPidParam_t *param)
 {
-    if (pid == 0 || param == 0) {
+    if (pid == 0 || param == 0)
+    {
         return;
     }
     pid->param = *param;
@@ -38,7 +51,8 @@ void MiniPid_SetParam(MiniPid_t *pid, const MiniPidParam_t *param)
 
 void MiniPid_Reset(MiniPid_t *pid)
 {
-    if (pid == 0) {
+    if (pid == 0)
+    {
         return;
     }
     pid->target = 0.0f;
@@ -55,7 +69,8 @@ float MiniPid_Calc(MiniPid_t *pid, float target, float measure, float dt_s)
     float i_out;
     float d_out = 0.0f;
 
-    if (pid == 0 || dt_s <= 0.0f) {
+    if (pid == 0 || dt_s <= 0.0f)
+    {
         return 0.0f;
     }
 
@@ -68,7 +83,8 @@ float MiniPid_Calc(MiniPid_t *pid, float target, float measure, float dt_s)
 
     p_out = pid->param.kp * pid->error;
     i_out = pid->param.ki * pid->integral;
-    if (mini_absf(dt_s) > 0.000001f) {
+    if (mini_absf(dt_s) > 0.000001f)
+    {
         d_out = pid->param.kd * (pid->error - pid->last_error) / dt_s;
     }
 
@@ -76,3 +92,4 @@ float MiniPid_Calc(MiniPid_t *pid, float target, float measure, float dt_s)
     pid->last_error = pid->error;
     return pid->output;
 }
+

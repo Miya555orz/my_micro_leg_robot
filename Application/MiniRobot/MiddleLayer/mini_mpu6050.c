@@ -1,3 +1,11 @@
+/**
+ ******************************************************************************
+ * @file    mini_mpu6050.c
+ * @brief   MPU6050 initialization, raw data acquisition, and roll/pitch/yaw attitude estimation.
+ * @author  Miya Zheng
+ * @date    2026-07-29
+ ******************************************************************************
+ */
 #include "mini_mpu6050.h"
 
 #include "mini_robot_config.h"
@@ -40,7 +48,8 @@ HAL_StatusTypeDef MiniMpu6050_Init(I2C_HandleTypeDef *hi2c)
 {
     uint8_t who_am_i = 0U;
 
-    if (hi2c == 0) {
+    if (hi2c == 0)
+    {
         return HAL_ERROR;
     }
     mpu_i2c = hi2c;
@@ -53,7 +62,8 @@ HAL_StatusTypeDef MiniMpu6050_Init(I2C_HandleTypeDef *hi2c)
                          &who_am_i,
                          1U,
                          50U) != HAL_OK ||
-        who_am_i != MPU_WHO_AM_I_VALUE) {
+        who_am_i != MPU_WHO_AM_I_VALUE)
+    {
         return HAL_ERROR;
     }
 
@@ -61,7 +71,8 @@ HAL_StatusTypeDef MiniMpu6050_Init(I2C_HandleTypeDef *hi2c)
         write_reg(MPU_REG_SMPLRT_DIV, 0x09U) != HAL_OK ||
         write_reg(MPU_REG_CONFIG, 0x03U) != HAL_OK ||
         write_reg(MPU_REG_GYRO_CONFIG, 0x08U) != HAL_OK ||
-        write_reg(MPU_REG_ACCEL_CONFIG, 0x08U) != HAL_OK) {
+        write_reg(MPU_REG_ACCEL_CONFIG, 0x08U) != HAL_OK)
+    {
         return HAL_ERROR;
     }
 
@@ -78,7 +89,8 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
     float accel_roll;
     float accel_pitch;
 
-    if (mpu_i2c == 0 || dt_s <= 0.0f) {
+    if (mpu_i2c == 0 || dt_s <= 0.0f)
+    {
         return HAL_ERROR;
     }
     if (HAL_I2C_Mem_Read(mpu_i2c,
@@ -87,7 +99,8 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
                          I2C_MEMADD_SIZE_8BIT,
                          raw,
                          sizeof(raw),
-                         30U) != HAL_OK) {
+                         30U) != HAL_OK)
+    {
         mpu_data.online = 0U;
         return HAL_ERROR;
     }
@@ -116,9 +129,12 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
                          (1.0f - MINI_MPU6050_COMPLEMENTARY_ALPHA) *
                          (MINI_MPU6050_PITCH_SIGN * accel_pitch + MINI_MPU6050_PITCH_OFFSET_RAD);
     mpu_data.yaw_rad += mpu_data.yaw_rate_rps * dt_s;
-    if (mpu_data.yaw_rad > MPU_PI) {
+    if (mpu_data.yaw_rad > MPU_PI)
+    {
         mpu_data.yaw_rad -= 2.0f * MPU_PI;
-    } else if (mpu_data.yaw_rad < -MPU_PI) {
+    }
+    else if (mpu_data.yaw_rad < -MPU_PI)
+    {
         mpu_data.yaw_rad += 2.0f * MPU_PI;
     }
     mpu_data.last_update_ms = HAL_GetTick();
@@ -127,6 +143,7 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
 }
 
 const MiniMpu6050Data_t *MiniMpu6050_GetData(void)
-{
+    {
     return &mpu_data;
 }
+

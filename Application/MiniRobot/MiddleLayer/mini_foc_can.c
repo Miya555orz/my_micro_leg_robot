@@ -1,3 +1,11 @@
+/**
+ ******************************************************************************
+ * @file    mini_foc_can.c
+ * @brief   CAN protocol adapter between the main controller and MiyaFOC hub motor driver boards.
+ * @author  Miya Zheng
+ * @date    2026-07-29
+ ******************************************************************************
+ */
 #include "mini_foc_can.h"
 
 #include "drv_can.h"
@@ -14,7 +22,8 @@ static uint8_t tx_sequence;
 static uint8_t checksum8(const uint8_t *data, uint8_t len)
 {
     uint8_t sum = 0U;
-    for (uint8_t i = 0U; i < len; ++i) {
+    for (uint8_t i = 0U; i < len; ++i)
+    {
         sum = (uint8_t)(sum + data[i]);
     }
     return (uint8_t)(~sum);
@@ -31,7 +40,8 @@ void MiniFoc_Init(void)
 
 MiniFocMotor_t *MiniFoc_GetMotor(uint8_t index)
 {
-    if (index >= MINI_ROBOT_WHEEL_COUNT) {
+    if (index >= MINI_ROBOT_WHEEL_COUNT)
+    {
         return 0;
     }
     return &motors[index];
@@ -39,7 +49,8 @@ MiniFocMotor_t *MiniFoc_GetMotor(uint8_t index)
 
 void MiniFoc_SetCommand(uint8_t index, MiniFocMode_t mode, float value)
 {
-    if (index >= MINI_ROBOT_WHEEL_COUNT) {
+    if (index >= MINI_ROBOT_WHEEL_COUNT)
+    {
         return;
     }
     motors[index].mode = mode;
@@ -50,7 +61,8 @@ HAL_StatusTypeDef MiniFoc_SendIndex(uint8_t index)
 {
     uint8_t frame[8];
 
-    if (index >= MINI_ROBOT_WHEEL_COUNT) {
+    if (index >= MINI_ROBOT_WHEEL_COUNT)
+    {
         return HAL_ERROR;
     }
 
@@ -74,12 +86,14 @@ HAL_StatusTypeDef MiniFoc_CommandIndex(uint8_t index, MiniFocMode_t mode, float 
 
 HAL_StatusTypeDef MiniFoc_CommandNode(uint8_t node, MiniFocMode_t mode, float value)
 {
-    if (node == 0U) {
+    if (node == 0U)
+    {
         HAL_StatusTypeDef left_status = MiniFoc_CommandIndex(0U, mode, value);
         HAL_StatusTypeDef right_status = MiniFoc_CommandIndex(1U, mode, value);
         return (left_status == HAL_OK && right_status == HAL_OK) ? HAL_OK : HAL_ERROR;
     }
-    if (node >= 1U && node <= MINI_ROBOT_WHEEL_COUNT) {
+    if (node >= 1U && node <= MINI_ROBOT_WHEEL_COUNT)
+    {
         return MiniFoc_CommandIndex((uint8_t)(node - 1U), mode, value);
     }
     return HAL_ERROR;
@@ -87,15 +101,18 @@ HAL_StatusTypeDef MiniFoc_CommandNode(uint8_t node, MiniFocMode_t mode, float va
 
 void MiniFoc_SendAll(void)
 {
-    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i) {
+    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i)
+    {
         (void)MiniFoc_SendIndex(i);
     }
 }
 
 void MiniFoc_OnCanRx(FDCAN_HandleTypeDef *hfdcan, uint32_t std_id, const uint8_t data[8])
 {
-    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i) {
-        if (motors[i].hfdcan == hfdcan && std_id == (MINI_FOC_FB_BASE_ID + motors[i].node_id)) {
+    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i)
+    {
+        if (motors[i].hfdcan == hfdcan && std_id == (MINI_FOC_FB_BASE_ID + motors[i].node_id))
+        {
             memcpy(&motors[i].speed_rps, &data[0], sizeof(float));
             memcpy(&motors[i].position_rad, &data[4], sizeof(float));
             motors[i].online = 1U;
@@ -108,9 +125,12 @@ void MiniFoc_OnCanRx(FDCAN_HandleTypeDef *hfdcan, uint32_t std_id, const uint8_t
 
 void MiniFoc_Heartbeat(uint32_t now_ms)
 {
-    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i) {
-        if ((now_ms - motors[i].last_rx_ms) > MINI_ROBOT_COMMAND_TIMEOUT_MS) {
+    for (uint8_t i = 0U; i < MINI_ROBOT_WHEEL_COUNT; ++i)
+    {
+        if ((now_ms - motors[i].last_rx_ms) > MINI_ROBOT_COMMAND_TIMEOUT_MS)
+        {
             motors[i].online = 0U;
         }
     }
 }
+

@@ -1,3 +1,11 @@
+/**
+ ******************************************************************************
+ * @file    mini_lqr.c
+ * @brief   Reusable LQR model and feedback gain calculation helper.
+ * @author  Miya Zheng
+ * @date    2026-07-29
+ ******************************************************************************
+ */
 #include "mini_lqr.h"
 
 #include "mini_robot_config.h"
@@ -9,15 +17,46 @@ static const float default_k[MINI_LQR_INPUT_DIM][MINI_LQR_STATE_DIM] = MINI_LQR_
 static const float default_x_ref[MINI_LQR_STATE_DIM] = MINI_LQR_DEFAULT_X_REF;
 static const float default_u_ff[MINI_LQR_INPUT_DIM] = MINI_LQR_DEFAULT_U_FF;
 
+void MiniLqr_BuildWheelLegState(float state[MINI_LQR_STATE_DIM], const MiniWheelLegLqrInput_t *input)
+{
+    float wheel_scale = 1.0f;
+
+    if (state == 0 || input == 0)
+    {
+        return;
+    }
+
+#if (MINI_LQR_WHEEL_STATE_USE_METER != 0U)
+    if (input->wheel_radius_m > 0.0f)
+    {
+        wheel_scale = input->wheel_radius_m;
+    }
+#endif
+
+    /* Current reduced wheel-leg model:
+     * theta/theta_dot are represented by the body pitch channel because the
+     * first prototype only measures IMU attitude and wheel feedback. The
+     * explicit builder keeps the later five-link/VMC extension localized here.
+     */
+    state[MINI_LQR_STATE_BODY_PITCH_RAD] = input->body_pitch_rad;
+    state[MINI_LQR_STATE_BODY_PITCH_RATE_RPS] = input->body_pitch_rate_rps;
+    state[MINI_LQR_STATE_LEFT_WHEEL_DISPLACEMENT] = input->left_wheel_position_rad * wheel_scale;
+    state[MINI_LQR_STATE_LEFT_WHEEL_SPEED] = input->left_wheel_speed_rps * wheel_scale;
+    state[MINI_LQR_STATE_RIGHT_WHEEL_DISPLACEMENT] = input->right_wheel_position_rad * wheel_scale;
+    state[MINI_LQR_STATE_RIGHT_WHEEL_SPEED] = input->right_wheel_speed_rps * wheel_scale;
+}
 static float clampf(float v, float limit)
 {
-    if (limit <= 0.0f) {
+    if (limit <= 0.0f)
+    {
         return v;
     }
-    if (v > limit) {
+    if (v > limit)
+    {
         return limit;
     }
-    if (v < -limit) {
+    if (v < -limit)
+    {
         return -limit;
     }
     return v;
@@ -25,7 +64,8 @@ static float clampf(float v, float limit)
 
 void MiniLqr_Init(MiniLqr_t *lqr)
 {
-    if (lqr == 0) {
+    if (lqr == 0)
+    {
         return;
     }
 
@@ -39,14 +79,15 @@ void MiniLqr_Init(MiniLqr_t *lqr)
 
     /* State order for tuning:
      * x0 body_pitch_rad, x1 body_pitch_rate_rps,
-     * x2 wheel_pos_l_rad, x3 wheel_speed_l_rps,
-     * x4 wheel_pos_r_rad, x5 wheel_speed_r_rps.
+     * x2 left wheel displacement, x3 left wheel speed,
+     * x4 right wheel displacement, x5 right wheel speed.
      */
 }
 
 void MiniLqr_SetEnabled(MiniLqr_t *lqr, uint8_t enabled)
 {
-    if (lqr == 0) {
+    if (lqr == 0)
+    {
         return;
     }
     lqr->enabled = enabled ? 1U : 0U;
@@ -54,7 +95,8 @@ void MiniLqr_SetEnabled(MiniLqr_t *lqr, uint8_t enabled)
 
 void MiniLqr_SetGain(MiniLqr_t *lqr, uint8_t input, uint8_t state, float value)
 {
-    if (lqr == 0 || input >= MINI_LQR_INPUT_DIM || state >= MINI_LQR_STATE_DIM) {
+    if (lqr == 0 || input >= MINI_LQR_INPUT_DIM || state >= MINI_LQR_STATE_DIM)
+    {
         return;
     }
     lqr->model.k[input][state] = value;
@@ -62,7 +104,8 @@ void MiniLqr_SetGain(MiniLqr_t *lqr, uint8_t input, uint8_t state, float value)
 
 void MiniLqr_SetA(MiniLqr_t *lqr, uint8_t row, uint8_t col, float value)
 {
-    if (lqr == 0 || row >= MINI_LQR_STATE_DIM || col >= MINI_LQR_STATE_DIM) {
+    if (lqr == 0 || row >= MINI_LQR_STATE_DIM || col >= MINI_LQR_STATE_DIM)
+    {
         return;
     }
     lqr->model.a[row][col] = value;
@@ -70,7 +113,8 @@ void MiniLqr_SetA(MiniLqr_t *lqr, uint8_t row, uint8_t col, float value)
 
 void MiniLqr_SetB(MiniLqr_t *lqr, uint8_t row, uint8_t input, float value)
 {
-    if (lqr == 0 || row >= MINI_LQR_STATE_DIM || input >= MINI_LQR_INPUT_DIM) {
+    if (lqr == 0 || row >= MINI_LQR_STATE_DIM || input >= MINI_LQR_INPUT_DIM)
+    {
         return;
     }
     lqr->model.b[row][input] = value;
@@ -78,7 +122,8 @@ void MiniLqr_SetB(MiniLqr_t *lqr, uint8_t row, uint8_t input, float value)
 
 void MiniLqr_SetState(MiniLqr_t *lqr, const float state[MINI_LQR_STATE_DIM])
 {
-    if (lqr == 0 || state == 0) {
+    if (lqr == 0 || state == 0)
+    {
         return;
     }
     memcpy(lqr->x, state, sizeof(lqr->x));
@@ -86,7 +131,8 @@ void MiniLqr_SetState(MiniLqr_t *lqr, const float state[MINI_LQR_STATE_DIM])
 
 void MiniLqr_SetTarget(MiniLqr_t *lqr, const float target[MINI_LQR_STATE_DIM])
 {
-    if (lqr == 0 || target == 0) {
+    if (lqr == 0 || target == 0)
+    {
         return;
     }
     memcpy(lqr->model.x_ref, target, sizeof(lqr->model.x_ref));
@@ -94,7 +140,8 @@ void MiniLqr_SetTarget(MiniLqr_t *lqr, const float target[MINI_LQR_STATE_DIM])
 
 void MiniLqr_SetFeedforward(MiniLqr_t *lqr, uint8_t input, float value)
 {
-    if (lqr == 0 || input >= MINI_LQR_INPUT_DIM) {
+    if (lqr == 0 || input >= MINI_LQR_INPUT_DIM)
+    {
         return;
     }
     lqr->model.u_ff[input] = value;
@@ -102,7 +149,8 @@ void MiniLqr_SetFeedforward(MiniLqr_t *lqr, uint8_t input, float value)
 
 void MiniLqr_SetOutputLimit(MiniLqr_t *lqr, float limit)
 {
-    if (lqr == 0) {
+    if (lqr == 0)
+    {
         return;
     }
     lqr->model.output_limit = limit;
@@ -110,17 +158,23 @@ void MiniLqr_SetOutputLimit(MiniLqr_t *lqr, float limit)
 
 void MiniLqr_Calc(MiniLqr_t *lqr)
 {
-    if (lqr == 0) {
+    if (lqr == 0)
+    {
         return;
     }
 
-    for (uint8_t input = 0U; input < MINI_LQR_INPUT_DIM; ++input) {
+    for (uint8_t input = 0U; input < MINI_LQR_INPUT_DIM; ++input)
+    {
         float out = lqr->model.u_ff[input];
 
-        for (uint8_t state = 0U; state < MINI_LQR_STATE_DIM; ++state) {
+        for (uint8_t state = 0U; state < MINI_LQR_STATE_DIM; ++state)
+        {
             const float err = lqr->x[state] - lqr->model.x_ref[state];
             out -= lqr->model.k[input][state] * err;
         }
         lqr->u[input] = clampf(out, lqr->model.output_limit);
     }
 }
+
+
+

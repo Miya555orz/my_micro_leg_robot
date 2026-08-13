@@ -47,15 +47,13 @@ miniwheellegrobot/mini_robot_app.o: \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_uart_ex.h \
   ..\Application\ConfigLayer\rp_driver_config.h \
   ..\Application\DriverLayer\drv_uart.h ..\Core\Inc\fdcan.h \
-  ..\Core\Inc\main.h ..\Core\Inc\i2c.h ..\Core\Inc\iwdg.h \
+  ..\Core\Inc\main.h ..\Core\Inc\i2c.h \
   ..\Application\MiniRobot\AppLayer\mini_chassis.h \
   ..\Application\MiniRobot\AppLayer\mini_pid.h \
   ..\Application\MiniRobot\AppLayer\mini_lqr.h \
   ..\Application\MiniRobot\MiddleLayer\mini_foc_can.h \
   ..\Application\MiniRobot\MiddleLayer\mini_mpu6050.h \
-  ..\Application\MiniRobot\MiddleLayer\mini_nrf24.h \
   ..\Application\MiniRobot\Config\mini_robot_config.h \
   ..\Application\MiniRobot\MiddleLayer\mini_status_led.h \
   ..\Application\MiniRobot\MiddleLayer\mini_ttl_servo.h \
-  ..\Application\MiniRobot\MiddleLayer\mini_vofa.h ..\Core\Inc\spi.h \
-  ..\Core\Inc\usart.h
+  ..\Application\MiniRobot\MiddleLayer\mini_vofa.h ..\Core\Inc\usart.h

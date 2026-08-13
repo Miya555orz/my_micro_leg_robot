@@ -16,6 +16,7 @@ void FDCAN2_IT0_IRQHandler(void);
 void TIM2_IRQHandler(void);
 void DMA1_Stream7_IRQHandler(void);
 void UART7_IRQHandler(void);
+void USART10_IRQHandler(void);
 
 #ifdef __cplusplus
 }

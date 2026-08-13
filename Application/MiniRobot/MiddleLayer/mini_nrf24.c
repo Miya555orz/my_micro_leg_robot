@@ -1,3 +1,11 @@
+/**
+ ******************************************************************************
+ * @file    mini_nrf24.c
+ * @brief   nRF24L01 SPI driver for wireless command packet reception.
+ * @author  Miya Zheng
+ * @date    2026-07-29
+ ******************************************************************************
+ */
 #include "mini_nrf24.h"
 
 #include "main.h"
@@ -36,7 +44,8 @@ static const uint8_t nrf_address[5] = MINI_NRF24_ADDRESS;
 static uint8_t spi_byte(uint8_t tx)
 {
     uint8_t rx = 0U;
-    if (HAL_SPI_TransmitReceive(nrf_spi, &tx, &rx, 1U, 10U) != HAL_OK) {
+    if (HAL_SPI_TransmitReceive(nrf_spi, &tx, &rx, 1U, 10U) != HAL_OK)
+    {
         nrf_online = 0U;
     }
     return rx;
@@ -70,7 +79,8 @@ static void read_buffer(uint8_t command, uint8_t *data, uint8_t length)
     uint8_t i;
     csn(GPIO_PIN_RESET);
     (void)spi_byte(command);
-    for (i = 0U; i < length; ++i) {
+    for (i = 0U; i < length; ++i)
+    {
         data[i] = spi_byte(NRF_CMD_NOP);
     }
     csn(GPIO_PIN_SET);
@@ -81,7 +91,8 @@ static void write_buffer(uint8_t reg, const uint8_t *data, uint8_t length)
     uint8_t i;
     csn(GPIO_PIN_RESET);
     (void)spi_byte((uint8_t)(NRF_CMD_W_REGISTER | (reg & 0x1FU)));
-    for (i = 0U; i < length; ++i) {
+    for (i = 0U; i < length; ++i)
+    {
         (void)spi_byte(data[i]);
     }
     csn(GPIO_PIN_SET);
@@ -107,7 +118,8 @@ static uint8_t check_module(void)
 
 HAL_StatusTypeDef MiniNrf24_Init(SPI_HandleTypeDef *hspi)
 {
-    if (hspi == 0) {
+    if (hspi == 0)
+    {
         return HAL_ERROR;
     }
 
@@ -117,7 +129,8 @@ HAL_StatusTypeDef MiniNrf24_Init(SPI_HandleTypeDef *hspi)
     HAL_GPIO_WritePin(NRF_CSN_GPIO_Port, NRF_CSN_Pin, GPIO_PIN_SET);
     HAL_Delay(5U);
 
-    if (!check_module()) {
+    if (!check_module())
+    {
         nrf_online = 0U;
         return HAL_ERROR;
     }
@@ -148,12 +161,14 @@ uint8_t MiniNrf24_Poll(uint8_t payload[32])
 {
     uint8_t status;
 
-    if (!nrf_online || payload == 0) {
+    if (!nrf_online || payload == 0)
+    {
         return 0U;
     }
     status = read_reg(NRF_REG_STATUS);
     if ((status & NRF_STATUS_RX_DR) == 0U &&
-        (read_reg(NRF_REG_FIFO_STATUS) & NRF_FIFO_RX_EMPTY) != 0U) {
+        (read_reg(NRF_REG_FIFO_STATUS) & NRF_FIFO_RX_EMPTY) != 0U)
+    {
         return 0U;
     }
 
@@ -166,3 +181,4 @@ uint8_t MiniNrf24_IsOnline(void)
 {
     return nrf_online;
 }
+
