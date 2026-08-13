@@ -1,0 +1,26 @@
+# Build output
+build/
+MDK-ARM/MiniWheelLegRobot/
+*.o
+*.d
+*.axf
+*.hex
+*.map
+*.lst
+*.htm
+*.crf
+*.dep
+*.lnp
+*.log
+
+# IDE/user local files
+.vscode/
+*.uvguix.*
+*.scvd
+*.dbgconf
+*.bak
+_backup_before_clean_*/
+
+# OS files
+Thumbs.db
+.DS_Store
