@@ -29,6 +29,24 @@ typedef struct
     uint16_t current;
 } MiniServoStatus_t;
 
+typedef enum
+{
+    MINI_SERVO_FAULT_NONE = 0,
+    MINI_SERVO_FAULT_RX_TIMEOUT = 1U << 0,
+    MINI_SERVO_FAULT_INVALID_PACKET = 1U << 1,
+    MINI_SERVO_FAULT_POSITION_RANGE = 1U << 2,
+    MINI_SERVO_FAULT_COMM_CHECK = 1U << 3,
+} MiniServoFault_t;
+
+typedef struct
+{
+    uint16_t last_position[2];
+    uint16_t target_position[2];
+    uint8_t position_valid[2];
+    uint8_t safe_pose_active;
+    uint32_t fault_flags;
+} MiniServoSafetyState_t;
+
 void MiniServo_Init(UART_HandleTypeDef *left_uart, UART_HandleTypeDef *right_uart);
 HAL_StatusTypeDef MiniServo_SetBaud(uint32_t baud);
 HAL_StatusTypeDef MiniServo_PingSide(uint8_t side);
@@ -49,5 +67,15 @@ uint8_t MiniServo_GetLastTx(uint8_t *out, uint8_t max_len);
 uint8_t MiniServo_GetLastRx(uint8_t *out, uint8_t max_len);
 void MiniServo_Poll(uint32_t now_ms);
 uint8_t MiniServo_IsOnline(void);
+void MiniServo_SafetyInit(void);
+HAL_StatusTypeDef MiniServo_CheckCommunication(void);
+HAL_StatusTypeDef MiniServo_EnterSafePose(void);
+HAL_StatusTypeDef MiniServo_SetPositionSafeSide(uint8_t side, uint16_t target, uint16_t speed);
+HAL_StatusTypeDef MiniServo_SetPairSafe(uint16_t left_pos, uint16_t right_pos, uint16_t speed);
+void MiniServo_SafetyPoll(uint32_t now_ms);
+uint8_t MiniServo_HasFault(void);
+uint32_t MiniServo_GetFaultFlags(void);
+const MiniServoSafetyState_t *MiniServo_GetSafetyState(void);
+void MiniServo_ClearFaults(void);
 
 #endif

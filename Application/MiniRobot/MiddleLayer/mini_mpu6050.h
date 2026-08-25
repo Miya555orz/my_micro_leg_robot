@@ -24,7 +24,10 @@ typedef struct
     float pitch_rate_rps;
     float yaw_rate_rps;
     uint8_t online;
+    uint8_t init_ok;
+    uint8_t who_am_i;
     uint32_t last_update_ms;
+    uint32_t update_fail_count;
 } MiniMpu6050Data_t;
 
 /**

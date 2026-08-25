@@ -64,8 +64,12 @@ HAL_StatusTypeDef MiniMpu6050_Init(I2C_HandleTypeDef *hi2c)
                          50U) != HAL_OK ||
         who_am_i != MPU_WHO_AM_I_VALUE)
     {
+        mpu_data.who_am_i = who_am_i;
+        mpu_data.online = 0U;
+        mpu_data.init_ok = 0U;
         return HAL_ERROR;
     }
+    mpu_data.who_am_i = who_am_i;
 
     if (write_reg(MPU_REG_PWR_MGMT_1, 0x01U) != HAL_OK ||
         write_reg(MPU_REG_SMPLRT_DIV, 0x09U) != HAL_OK ||
@@ -73,10 +77,13 @@ HAL_StatusTypeDef MiniMpu6050_Init(I2C_HandleTypeDef *hi2c)
         write_reg(MPU_REG_GYRO_CONFIG, 0x08U) != HAL_OK ||
         write_reg(MPU_REG_ACCEL_CONFIG, 0x08U) != HAL_OK)
     {
+        mpu_data.online = 0U;
+        mpu_data.init_ok = 0U;
         return HAL_ERROR;
     }
 
     HAL_Delay(10U);
+    mpu_data.init_ok = 1U;
     mpu_data.online = 1U;
     return HAL_OK;
 }
@@ -89,8 +96,10 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
     float accel_roll;
     float accel_pitch;
 
-    if (mpu_i2c == 0 || dt_s <= 0.0f)
+    if (mpu_i2c == 0 || dt_s <= 0.0f || mpu_data.init_ok == 0U)
     {
+        mpu_data.online = 0U;
+        mpu_data.update_fail_count++;
         return HAL_ERROR;
     }
     if (HAL_I2C_Mem_Read(mpu_i2c,
@@ -102,6 +111,7 @@ HAL_StatusTypeDef MiniMpu6050_Update(float dt_s)
                          30U) != HAL_OK)
     {
         mpu_data.online = 0U;
+        mpu_data.update_fail_count++;
         return HAL_ERROR;
     }
 

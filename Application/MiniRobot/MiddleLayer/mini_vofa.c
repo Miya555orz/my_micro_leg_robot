@@ -166,6 +166,11 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
     memcpy(line, rx, len);
     line[len] = '\0';
 
+    if (strncmp(line, "help", 4U) == 0 || strncmp(line, "?", 1U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_HELP;
+        return 1U;
+    }
     if (sscanf(line, "vel %f %f", &a, &b) == 2 || sscanf(line, "vx=%f wz=%f", &a, &b) == 2)
     {
         out->type = MINI_VOFA_CMD_VEL;
@@ -281,6 +286,58 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
     if (strncmp(line, "block reset", 11U) == 0)
     {
         out->type = MINI_VOFA_CMD_BLOCK_RESET;
+        return 1U;
+    }
+    if (strncmp(line, "control status", 14U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_CONTROL_STATUS;
+        return 1U;
+    }
+    if (strncmp(line, "control enable", 14U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_ENABLE;
+        out->enable = 1U;
+        return 1U;
+    }
+    if (strncmp(line, "control disable", 15U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_STOP;
+        return 1U;
+    }
+    if (strncmp(line, "motor status", 12U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_MOTOR_STATUS;
+        return 1U;
+    }
+    if (sscanf(line, "motor left %f", &a) == 1)
+    {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = 1U;
+        out->mode = 2U;
+        out->a = a;
+        return 1U;
+    }
+    if (sscanf(line, "motor right %f", &a) == 1)
+    {
+        out->type = MINI_VOFA_CMD_FOC_DIRECT;
+        out->index = 2U;
+        out->mode = 2U;
+        out->a = a;
+        return 1U;
+    }
+    if (strncmp(line, "imu status", 10U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_IMU_STATUS;
+        return 1U;
+    }
+    if (strncmp(line, "imu raw", 7U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_IMU_RAW;
+        return 1U;
+    }
+    if (strncmp(line, "imu angle", 9U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_IMU_ANGLE;
         return 1U;
     }
     if (sscanf(line, "can restart %d", &index) == 1)
@@ -399,6 +456,20 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
         out->a = a;
         return 1U;
     }
+    if (sscanf(line, "servo left set %f", &a) == 1)
+    {
+        out->type = MINI_VOFA_CMD_SERVO_POS;
+        out->index = 0U;
+        out->a = a;
+        return 1U;
+    }
+    if (sscanf(line, "servo right set %f", &a) == 1)
+    {
+        out->type = MINI_VOFA_CMD_SERVO_POS;
+        out->index = 1U;
+        out->a = a;
+        return 1U;
+    }
     if (sscanf(line, "servo pos %11s %f", selector, &a) == 2 &&
         parse_servo_selector(selector, &out->index))
     {
@@ -423,6 +494,23 @@ uint8_t MiniVofa_ParseCommand(const uint8_t *rx, uint16_t max_len, MiniVofaComma
         parse_servo_selector(selector, &out->index))
     {
         out->type = MINI_VOFA_CMD_SERVO_READ;
+        return 1U;
+    }
+    if (sscanf(line, "servo %11s pos", selector) == 1 &&
+        parse_servo_selector(selector, &out->index))
+    {
+        out->type = MINI_VOFA_CMD_SERVO_READ;
+        return 1U;
+    }
+    if (strncmp(line, "servo status", 12U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_SERVO_READ;
+        out->index = 0xFEU;
+        return 1U;
+    }
+    if (strncmp(line, "servo safe", 10U) == 0)
+    {
+        out->type = MINI_VOFA_CMD_SERVO_SAFE;
         return 1U;
     }
     if (sscanf(line, "servo baud %f", &a) == 1)

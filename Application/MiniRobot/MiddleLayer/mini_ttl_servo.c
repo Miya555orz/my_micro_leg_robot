@@ -22,6 +22,7 @@
 #define STS_RX_TIMEOUT_MS                  6U
 #define STS_TX_TIMEOUT_MS                  10U
 #define STS_PACKET_MAX_LEN                 32U
+#define STS_HEADER_SCAN_LIMIT              8U
 
 typedef struct
 {
@@ -36,6 +37,8 @@ static uint8_t last_tx_packet[STS_PACKET_MAX_LEN];
 static uint8_t last_rx_packet[STS_PACKET_MAX_LEN];
 static uint8_t last_tx_len;
 static uint8_t last_rx_len;
+static MiniServoSafetyState_t safety_state;
+static uint32_t last_safe_hold_ms;
 
 static uint8_t sts_checksum(uint8_t id, uint8_t length, uint8_t instruction, const uint8_t *params)
 {
@@ -65,6 +68,65 @@ static MiniServoBus_t *get_bus(uint8_t side)
     return NULL;
 }
 
+static uint16_t side_min(uint8_t side)
+{
+    return (side == MINI_SERVO_SIDE_RIGHT) ? MINI_SERVO_RIGHT_POSITION_MIN : MINI_SERVO_LEFT_POSITION_MIN;
+}
+
+static uint16_t side_max(uint8_t side)
+{
+    return (side == MINI_SERVO_SIDE_RIGHT) ? MINI_SERVO_RIGHT_POSITION_MAX : MINI_SERVO_LEFT_POSITION_MAX;
+}
+
+static uint16_t side_safe(uint8_t side)
+{
+    return (side == MINI_SERVO_SIDE_RIGHT) ? MINI_SERVO_RIGHT_SAFE_POSITION : MINI_SERVO_LEFT_SAFE_POSITION;
+}
+
+static uint16_t clamp_side_position(uint8_t side, uint16_t target)
+{
+    const uint16_t min_pos = side_min(side);
+    const uint16_t max_pos = side_max(side);
+
+    if (target < min_pos)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_POSITION_RANGE;
+        return min_pos;
+    }
+    if (target > max_pos)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_POSITION_RANGE;
+        return max_pos;
+    }
+    return target;
+}
+
+static uint8_t side_position_in_range(uint8_t side, uint16_t position)
+{
+    return (position >= side_min(side) && position <= side_max(side)) ? 1U : 0U;
+}
+
+static uint16_t limit_step(uint8_t side, uint16_t target)
+{
+    uint16_t current = safety_state.last_position[side];
+
+    if (side > MINI_SERVO_SIDE_RIGHT || safety_state.position_valid[side] == 0U)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_COMM_CHECK;
+        return side_safe(side);
+    }
+
+    if (target > current && (target - current) > MINI_SERVO_MAX_STEP_PER_CMD)
+    {
+        return (uint16_t)(current + MINI_SERVO_MAX_STEP_PER_CMD);
+    }
+    if (current > target && (current - target) > MINI_SERVO_MAX_STEP_PER_CMD)
+    {
+        return (uint16_t)(current - MINI_SERVO_MAX_STEP_PER_CMD);
+    }
+    return target;
+}
+
 static void clear_uart_error(UART_HandleTypeDef *uart)
 {
     if (uart == NULL)
@@ -76,6 +138,36 @@ static void clear_uart_error(UART_HandleTypeDef *uart)
     __HAL_UART_CLEAR_FEFLAG(uart);
     __HAL_UART_CLEAR_NEFLAG(uart);
     __HAL_UART_CLEAR_PEFLAG(uart);
+}
+
+static void drain_uart_rx(UART_HandleTypeDef *uart)
+{
+    uint8_t byte;
+    uint8_t guard = STS_PACKET_MAX_LEN;
+
+    if (uart == NULL)
+    {
+        return;
+    }
+
+    clear_uart_error(uart);
+    while (guard > 0U && HAL_UART_Receive(uart, &byte, 1U, 0U) == HAL_OK)
+    {
+        --guard;
+    }
+    clear_uart_error(uart);
+}
+
+static void mark_rx_fault(HAL_StatusTypeDef status)
+{
+    if (status == HAL_TIMEOUT)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_RX_TIMEOUT;
+    }
+    else
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_INVALID_PACKET;
+    }
 }
 
 static HAL_StatusTypeDef send_packet(MiniServoBus_t *bus, uint8_t instruction, const uint8_t *params, uint8_t param_len)
@@ -101,7 +193,7 @@ static HAL_StatusTypeDef send_packet(MiniServoBus_t *bus, uint8_t instruction, c
 
     last_tx_packet[tx_len - 1U] = sts_checksum(bus->id, last_tx_packet[3], instruction, params);
     last_tx_len = tx_len;
-    clear_uart_error(bus->uart);
+    drain_uart_rx(bus->uart);
 
     if (HAL_UART_Transmit(bus->uart, last_tx_packet, tx_len, STS_TX_TIMEOUT_MS) != HAL_OK)
     {
@@ -114,8 +206,12 @@ static HAL_StatusTypeDef send_packet(MiniServoBus_t *bus, uint8_t instruction, c
 
 static HAL_StatusTypeDef receive_packet(MiniServoBus_t *bus, uint8_t *rx_len)
 {
-    uint8_t head[4];
+    uint8_t b;
+    uint8_t header_state = 0U;
+    uint8_t scanned = 0U;
     uint8_t remain;
+    uint16_t sum;
+    HAL_StatusTypeDef ret;
 
     if (bus == NULL || bus->uart == NULL || rx_len == NULL)
     {
@@ -125,29 +221,75 @@ static HAL_StatusTypeDef receive_packet(MiniServoBus_t *bus, uint8_t *rx_len)
     memset(last_rx_packet, 0, sizeof(last_rx_packet));
     last_rx_len = 0U;
 
-    if (HAL_UART_Receive(bus->uart, head, sizeof(head), STS_RX_TIMEOUT_MS) != HAL_OK)
+    while (scanned < STS_HEADER_SCAN_LIMIT)
     {
+        ret = HAL_UART_Receive(bus->uart, &b, 1U, STS_RX_TIMEOUT_MS);
+        if (ret != HAL_OK)
+        {
+            mark_rx_fault(ret);
+            return ret;
+        }
+        ++scanned;
+
+        if (header_state == 0U)
+        {
+            header_state = (b == STS_HEADER) ? 1U : 0U;
+        }
+        else
+        {
+            if (b == STS_HEADER)
+            {
+                last_rx_packet[0] = STS_HEADER;
+                last_rx_packet[1] = STS_HEADER;
+                break;
+            }
+            header_state = 0U;
+        }
+    }
+
+    if (last_rx_packet[0] != STS_HEADER || last_rx_packet[1] != STS_HEADER)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_INVALID_PACKET;
+        return HAL_ERROR;
+    }
+
+    if (HAL_UART_Receive(bus->uart, &last_rx_packet[2], 2U, STS_RX_TIMEOUT_MS) != HAL_OK)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_RX_TIMEOUT;
         return HAL_TIMEOUT;
     }
 
-    if (head[0] != STS_HEADER || head[1] != STS_HEADER || head[2] != bus->id)
+    if (last_rx_packet[2] != bus->id)
     {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_INVALID_PACKET;
         return HAL_ERROR;
     }
 
-    remain = head[3];
-    if (remain > (STS_PACKET_MAX_LEN - 4U))
+    remain = last_rx_packet[3];
+    if (remain < 2U || remain > (STS_PACKET_MAX_LEN - 4U))
     {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_INVALID_PACKET;
         return HAL_ERROR;
     }
 
-    memcpy(last_rx_packet, head, sizeof(head));
     if (HAL_UART_Receive(bus->uart, &last_rx_packet[4], remain, STS_RX_TIMEOUT_MS) != HAL_OK)
     {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_RX_TIMEOUT;
         return HAL_TIMEOUT;
     }
 
     last_rx_len = (uint8_t)(remain + 4U);
+    sum = 0U;
+    for (uint8_t i = 2U; i < (uint8_t)(last_rx_len - 1U); ++i)
+    {
+        sum += last_rx_packet[i];
+    }
+    if ((uint8_t)(~sum) != last_rx_packet[last_rx_len - 1U])
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_INVALID_PACKET;
+        return HAL_ERROR;
+    }
+
     *rx_len = last_rx_len;
     bus->online = 1U;
     bus->last_rx_ms = HAL_GetTick();
@@ -178,9 +320,9 @@ static HAL_StatusTypeDef write_position(MiniServoBus_t *bus, uint16_t position, 
     HAL_StatusTypeDef status;
     uint8_t rx_len;
 
-    if (position > MINI_SERVO_POSITION_MAX)
+    if (position > 4095U)
     {
-        position = MINI_SERVO_POSITION_MAX;
+        position = 4095U;
     }
 
     params[0] = STS_REG_ACC;
@@ -209,6 +351,7 @@ void MiniServo_Init(UART_HandleTypeDef *left_uart, UART_HandleTypeDef *right_uar
     servo_buses[1].uart = right_uart;
     servo_buses[1].id = MINI_SERVO_RIGHT_ID;
     (void)MiniServo_SetBaud(MINI_SERVO_UART_BAUD);
+    MiniServo_SafetyInit();
 }
 
 HAL_StatusTypeDef MiniServo_SetBaud(uint32_t baud)
@@ -310,6 +453,11 @@ HAL_StatusTypeDef MiniServo_ReadStatusSide(uint8_t side, MiniServoStatus_t *stat
     status->temperature_c = last_rx_packet[12];
     status->moving = 0U;
     status->current = 0U;
+    if (side <= MINI_SERVO_SIDE_RIGHT)
+    {
+        safety_state.last_position[side] = status->position;
+        safety_state.position_valid[side] = 1U;
+    }
     return HAL_OK;
 }
 
@@ -375,7 +523,7 @@ HAL_StatusTypeDef MiniServo_WritePairNoAck(uint16_t left_pos, uint16_t right_pos
 
 HAL_StatusTypeDef MiniServo_ShutdownPose(void)
 {
-    return MiniServo_WritePair(MINI_SERVO_SHUTDOWN_POS, MINI_SERVO_SHUTDOWN_POS, MINI_SERVO_MOVE_SPEED);
+    return MiniServo_EnterSafePose();
 }
 
 uint8_t MiniServo_GetLastTx(uint8_t *out, uint8_t max_len)
@@ -415,9 +563,177 @@ void MiniServo_Poll(uint32_t now_ms)
             servo_buses[i].online = 0U;
         }
     }
+    MiniServo_SafetyPoll(now_ms);
 }
 
 uint8_t MiniServo_IsOnline(void)
 {
     return (uint8_t)(servo_buses[0].online && servo_buses[1].online);
+}
+
+void MiniServo_SafetyInit(void)
+{
+    memset(&safety_state, 0, sizeof(safety_state));
+    safety_state.last_position[MINI_SERVO_SIDE_LEFT] = MINI_SERVO_LEFT_SAFE_POSITION;
+    safety_state.last_position[MINI_SERVO_SIDE_RIGHT] = MINI_SERVO_RIGHT_SAFE_POSITION;
+    safety_state.target_position[MINI_SERVO_SIDE_LEFT] = MINI_SERVO_LEFT_SAFE_POSITION;
+    safety_state.target_position[MINI_SERVO_SIDE_RIGHT] = MINI_SERVO_RIGHT_SAFE_POSITION;
+    last_safe_hold_ms = 0U;
+}
+
+HAL_StatusTypeDef MiniServo_CheckCommunication(void)
+{
+    MiniServoStatus_t left_status;
+    MiniServoStatus_t right_status;
+    HAL_StatusTypeDef left_ret = MiniServo_ReadStatusSide(MINI_SERVO_SIDE_LEFT, &left_status);
+    HAL_StatusTypeDef right_ret = MiniServo_ReadStatusSide(MINI_SERVO_SIDE_RIGHT, &right_status);
+
+    if (left_ret != HAL_OK || right_ret != HAL_OK)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_COMM_CHECK;
+        return HAL_ERROR;
+    }
+    if (side_position_in_range(MINI_SERVO_SIDE_LEFT, left_status.position) == 0U ||
+        side_position_in_range(MINI_SERVO_SIDE_RIGHT, right_status.position) == 0U)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_POSITION_RANGE;
+        return HAL_ERROR;
+    }
+
+    safety_state.fault_flags = MINI_SERVO_FAULT_NONE;
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef MiniServo_SetPositionSafeSide(uint8_t side, uint16_t target, uint16_t speed)
+{
+    uint16_t limited_target;
+    uint16_t step_target;
+    HAL_StatusTypeDef ret;
+
+    if (side > MINI_SERVO_SIDE_RIGHT)
+    {
+        return HAL_ERROR;
+    }
+    if (safety_state.position_valid[side] == 0U)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_COMM_CHECK;
+        return HAL_ERROR;
+    }
+    if (side_position_in_range(side, safety_state.last_position[side]) == 0U)
+    {
+        safety_state.fault_flags |= MINI_SERVO_FAULT_POSITION_RANGE;
+        return HAL_ERROR;
+    }
+
+    limited_target = clamp_side_position(side, target);
+    safety_state.target_position[side] = limited_target;
+    step_target = limit_step(side, limited_target);
+    ret = MiniServo_WritePositionSide(side,
+                                      step_target,
+                                      MINI_SERVO_MOVE_TIME_MS,
+                                      (speed > MINI_SERVO_MOVE_SPEED) ? MINI_SERVO_MOVE_SPEED : speed);
+    if (ret == HAL_OK)
+    {
+        safety_state.last_position[side] = step_target;
+        safety_state.position_valid[side] = 1U;
+    }
+    else
+    {
+        mark_rx_fault(ret);
+    }
+    return ret;
+}
+
+HAL_StatusTypeDef MiniServo_SetPairSafe(uint16_t left_pos, uint16_t right_pos, uint16_t speed)
+{
+    HAL_StatusTypeDef left_ret = MiniServo_SetPositionSafeSide(MINI_SERVO_SIDE_LEFT, left_pos, speed);
+    HAL_StatusTypeDef right_ret = MiniServo_SetPositionSafeSide(MINI_SERVO_SIDE_RIGHT, right_pos, speed);
+
+    return (left_ret == HAL_OK && right_ret == HAL_OK) ? HAL_OK : HAL_ERROR;
+}
+
+HAL_StatusTypeDef MiniServo_EnterSafePose(void)
+{
+    HAL_StatusTypeDef ret;
+
+    safety_state.safe_pose_active = 1U;
+    if (safety_state.position_valid[MINI_SERVO_SIDE_LEFT] == 0U ||
+        safety_state.position_valid[MINI_SERVO_SIDE_RIGHT] == 0U)
+    {
+        if (MiniServo_CheckCommunication() != HAL_OK)
+        {
+            (void)MiniServo_TorqueEnableSideNoAck(MINI_SERVO_SIDE_ALL, 0U);
+            return HAL_ERROR;
+        }
+    }
+
+    ret = MiniServo_SetPairSafe(MINI_SERVO_LEFT_SAFE_POSITION,
+                                MINI_SERVO_RIGHT_SAFE_POSITION,
+                                MINI_SERVO_STAND_SPEED);
+    if (ret != HAL_OK)
+    {
+        (void)MiniServo_TorqueEnableSideNoAck(MINI_SERVO_SIDE_ALL, 0U);
+    }
+    return ret;
+}
+
+void MiniServo_SafetyPoll(uint32_t now_ms)
+{
+    uint16_t left_target;
+    uint16_t right_target;
+
+    if (safety_state.safe_pose_active == 0U)
+    {
+        return;
+    }
+    if ((now_ms - last_safe_hold_ms) < MINI_SERVO_SAFE_HOLD_PERIOD_MS)
+    {
+        return;
+    }
+
+    last_safe_hold_ms = now_ms;
+    if (safety_state.position_valid[MINI_SERVO_SIDE_LEFT] == 0U ||
+        safety_state.position_valid[MINI_SERVO_SIDE_RIGHT] == 0U)
+    {
+        return;
+    }
+
+    left_target = limit_step(MINI_SERVO_SIDE_LEFT, MINI_SERVO_LEFT_SAFE_POSITION);
+    right_target = limit_step(MINI_SERVO_SIDE_RIGHT, MINI_SERVO_RIGHT_SAFE_POSITION);
+    if (write_position(&servo_buses[MINI_SERVO_SIDE_LEFT],
+                       left_target,
+                       MINI_SERVO_MOVE_TIME_MS,
+                       MINI_SERVO_STAND_SPEED,
+                       0U) == HAL_OK)
+    {
+        safety_state.last_position[MINI_SERVO_SIDE_LEFT] = left_target;
+    }
+    if (write_position(&servo_buses[MINI_SERVO_SIDE_RIGHT],
+                       right_target,
+                       MINI_SERVO_MOVE_TIME_MS,
+                       MINI_SERVO_STAND_SPEED,
+                       0U) == HAL_OK)
+    {
+        safety_state.last_position[MINI_SERVO_SIDE_RIGHT] = right_target;
+    }
+}
+
+uint8_t MiniServo_HasFault(void)
+{
+    return (safety_state.fault_flags != MINI_SERVO_FAULT_NONE) ? 1U : 0U;
+}
+
+uint32_t MiniServo_GetFaultFlags(void)
+{
+    return safety_state.fault_flags;
+}
+
+const MiniServoSafetyState_t *MiniServo_GetSafetyState(void)
+{
+    return &safety_state;
+}
+
+void MiniServo_ClearFaults(void)
+{
+    safety_state.fault_flags = MINI_SERVO_FAULT_NONE;
 }

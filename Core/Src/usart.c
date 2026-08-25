@@ -109,10 +109,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef *uartHandle)
 
         __HAL_RCC_USART10_CLK_ENABLE();
         __HAL_RCC_GPIOE_CLK_ENABLE();
-        GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_3;
+        GPIO_InitStruct.Pin = GPIO_PIN_2;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
         GPIO_InitStruct.Pull = GPIO_PULLUP;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+        GPIO_InitStruct.Alternate = GPIO_AF4_USART10;
+        HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+        GPIO_InitStruct.Pin = GPIO_PIN_3;
         GPIO_InitStruct.Alternate = GPIO_AF11_USART10;
         HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
